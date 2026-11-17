@@ -105,6 +105,7 @@ errsplain -c python "找不到模块"   # 限定分类搜索
 errsplain --json "Module not found"   # JSON 输出，接脚本用
 errsplain --diagnose "你的报错"    # 翻译 + 现场诊断
 errsplain diagnose "你的报错"      # 只做现场诊断
+errsplain "你的报错" --full       # 完整卡片（默认精简：意思 + 前 3 条修法）
 errsplain --validate              # 校验词库
 ```
 

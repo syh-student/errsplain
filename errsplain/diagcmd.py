@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from .diagnose import diagnose, has_checkable, render
@@ -21,7 +22,16 @@ def handle_diagnose_command(args: list[str]) -> int:
     parser.add_argument("error", nargs="*", help="要诊断的报错文本")
     parser.add_argument("--file", "-f", help="从文件读取报错")
     parser.add_argument("--stdin", action="store_true", help="强制从标准输入读取")
+    parser.add_argument("--no-color", action="store_true", help="禁用颜色输出")
     opts = parser.parse_args(args)
+    use_color = (
+        not getattr(opts, "no_color", False)
+        and sys.stdout.isatty()
+        and "NO_COLOR" not in os.environ
+    )
+    from .cli import Palette
+
+    p = Palette(use_color)
 
     parts: list[str] = []
     if opts.error:
@@ -52,6 +62,6 @@ def handle_diagnose_command(args: list[str]) -> int:
             print("可以试试直接翻译：errsplain \"你的报错\"")
         return 1
 
-    print(render(findings))
+    print(render(findings, palette=p))
     print()
     return 0

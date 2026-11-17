@@ -813,14 +813,26 @@ def has_checkable(text: str) -> bool:
     ))
 
 
-def render(findings: list[Finding]) -> str:
-    """把检测结果渲染成终端友好的文本。"""
+def render(findings: list[Finding], palette=None) -> str:
+    """把检测结果渲染成终端友好的文本（按显示宽度折行、悬挂缩进）。
+
+    传入 palette 时按状态着色：成功绿、失败红、未知黄。
+    """
     if not findings:
         return ""
-    lines = ["  ── 现场诊断（基于你本机的实际状态）──"]
+    from .layout import wrap
+
+    cols = shutil.get_terminal_size(fallback=(100, 24)).columns
+    cols = max(cols, 46)
+    paint = (lambda text, color: f"{color}{text}\033[0m") if palette else (lambda t, c: t)
+    ok_color = {True: palette.green if palette else "", False: palette.red if palette else ""}
+    lines = ["  " + paint("── 现场诊断（基于你本机的实际状态）──", palette.bold + palette.cyan if palette else "")]
     for f in findings:
-        mark = "" if f.ok is None else ("  " if f.ok else "  ")
-        lines.append(f"  {f.title}：{f.value}")
+        color = "" if f.ok is None else (ok_color.get(f.ok, palette.yellow if palette else ""))
+        for i, ln in enumerate(wrap(f"{f.title}：{f.value}", cols - 4)):
+            indent = "  " if i == 0 else "      "
+            lines.append(indent + (paint(ln, color) if i == 0 else ln))
         if f.hint:
-            lines.append(f"    → {f.hint}")
+            for i, ln in enumerate(wrap(f"→ {f.hint}", cols - 6)):
+                lines.append(("    " if i == 0 else "        ") + ln)
     return "\n".join(lines)

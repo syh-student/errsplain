@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
 from . import __version__
 from .database import DatasetError, categories, load_entries
+from .layout import disp_width, truncate, wrap
 from .matcher import Match, match
 from .models import Entry
 
@@ -26,42 +28,77 @@ class Palette:
             self.green = "\033[32m"
             self.yellow = "\033[33m"
             self.blue = "\033[34m"
+            self.magenta = "\033[35m"
             self.cyan = "\033[36m"
         else:
             self.reset = self.bold = self.dim = ""
             self.red = self.green = self.yellow = self.blue = self.cyan = ""
+            self.magenta = ""
 
     def paint(self, text: str, color: str) -> str:
         return f"{color}{text}{self.reset}" if color else text
 
 
-def _render_match(m: Match, p: Palette, *, index: int) -> str:
+def _term_width() -> int:
+    """终端宽度；过窄时保底，避免排版炸裂。"""
+    cols = shutil.get_terminal_size(fallback=(100, 24)).columns
+    return max(cols, 46)
+
+
+def _label_block(label: str, text: str, p: Palette, color: str) -> list[str]:
+    """「标签  正文」块：续行与正文对齐（悬挂缩进），按终端宽度折行。"""
+    lead = 2 + disp_width(label) + 2  # "  标签  " 的显示宽度
+    wrapped = wrap(text, _term_width() - lead)
+    lines = ["  " + p.paint(label, color) + "  " + wrapped[0]]
+    lines += [" " * lead + ln for ln in wrapped[1:]]
+    return lines
+
+
+def _render_match(
+    m: Match, p: Palette, *, index: int, full: bool = False, show_meta: bool = True
+) -> str:
+    """渲染一条解释。默认精简（意思 + 前 3 条修法 + 注意）；full 显示全部。"""
     e = m.entry
+    W = _term_width()
     lines: list[str] = []
-    head = f"  [{index}] {e.title}"
-    lines.append(p.paint(head, p.bold + p.cyan))
-    lines.append(
-        "      "
-        + p.paint(f"分类 {e.category}", p.dim)
-        + "  "
-        + p.paint(f"相关度 {m.confidence} ({m.score:.0%})", p.dim)
-        + "  "
-        + p.paint(" · ".join(m.reasons), p.dim)
-    )
+    lines.append("  " + p.paint(f"[{index}] {e.title}", p.bold + p.cyan))
+    if show_meta:
+        lines.append(
+            "      "
+            + p.paint(f"分类 {e.category} · 相关度 {m.score:.0%}", p.dim)
+        )
     lines.append("")
-    lines.append("  " + p.paint("这是什么意思", p.bold) + "  " + e.meaning)
-    if e.causes:
+
+    lines += _label_block("这是什么意思", e.meaning, p, p.bold + p.blue)
+    if full and e.causes:
         lines.append("")
-        lines.append("  " + p.paint("最常见的原因", p.bold))
-        lines += [f"    {i}. {c}" for i, c in enumerate(e.causes, 1)]
+        lines.append("  " + p.paint("最常见的原因", p.bold + p.magenta))
+        lines += _numbered(e.causes, W)
     if e.fixes:
+        shown = e.fixes if full else e.fixes[:3]
         lines.append("")
         lines.append("  " + p.paint("怎么修", p.bold + p.green))
-        lines += [f"    {i}. {f}" for i, f in enumerate(e.fixes, 1)]
+        lines += _numbered(shown, W)
+        if not full and len(e.fixes) > 3:
+            lines.append(
+                p.paint(f"    … 另有 {len(e.fixes) - 3} 条（--full）", p.dim)
+            )
     if e.note:
         lines.append("")
-        lines.append("  " + p.paint("注意", p.bold + p.yellow) + "  " + e.note)
+        lines += _label_block("注意", e.note, p, p.bold + p.yellow)
     return "\n".join(lines)
+
+
+def _numbered(items: list[str], width: int) -> list[str]:
+    """编号列表：每条按显示宽度折行，续行与正文对齐。"""
+    out: list[str] = []
+    for i, item in enumerate(items, 1):
+        prefix = f"    {i}. "
+        indent = " " * disp_width(prefix)
+        wrapped = wrap(item, width - disp_width(prefix))
+        out.append(prefix + wrapped[0])
+        out += [indent + ln for ln in wrapped[1:]]
+    return out
 
 
 def _render_no_match(p: Palette) -> str:
@@ -122,6 +159,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--top", "-n", type=int, default=3, help="最多显示几条结果 (默认 3)")
     parser.add_argument("--threshold", type=float, default=0.22, help="相关度阈值 (默认 0.22)")
     parser.add_argument("--no-color", action="store_true", help="禁用颜色输出")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="显示完整内容（含全部原因与全部修法），默认精简",
+    )
     parser.add_argument("--json", action="store_true", help="以 JSON 输出，方便脚本处理")
     parser.add_argument("--list", action="store_true", help="列出所有词条")
     parser.add_argument("--stats", action="store_true", help="显示词库统计")
@@ -140,17 +182,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _render_hook(m: Match) -> str:
+def _render_hook(m: Match, p: Palette) -> str:
     """自动模式的精简卡片：一条、几行、能照着做。"""
     e = m.entry
-    lines = [f"  errsplain → [{e.category}] {e.title}  ({m.confidence})"]
-    lines.append(f"    {e.meaning}")
+    W = _term_width()
+    head = truncate(f"errsplain → [{e.category}] {e.title}  ({m.confidence})", W - 2)
+    lines = ["  " + p.paint(head, p.bold + p.cyan)]
+    for ln in wrap(e.meaning, W - 4):
+        lines.append("    " + ln)
     if e.fixes:
-        lines.append(f"    试试：{e.fixes[0]}")
+        for i, ln in enumerate(wrap(e.fixes[0], W - 9)):
+            lines.append(
+                (p.paint("    试试：", p.bold + p.green) if i == 0 else "          ")
+                + ln
+            )
     return "\n".join(lines)
 
 
-def _print_diagnosis(query: str) -> None:
+def _print_diagnosis(query: str, p: Palette) -> None:
     """跑现场诊断并打印。诊断失败绝不能影响主流程。"""
     try:
         from .diagnose import diagnose, render
@@ -158,7 +207,7 @@ def _print_diagnosis(query: str) -> None:
         findings = diagnose(query)
         if findings:
             print()
-            print(render(findings))
+            print(render(findings, palette=p))
     except Exception:  # 诊断是增强功能，任何异常都静默跳过
         pass
 
@@ -234,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.hook:
         auto = match(query, entries, category=args.category, top_k=1, threshold=0.45)
         if auto:
-            print(_render_hook(auto[0]))
+            print(_render_hook(auto[0], p))
             return 0
         return 0  # 静默成功，不打扰
 
@@ -258,16 +307,21 @@ def main(argv: list[str] | None = None) -> int:
     if not results:
         print(_render_no_match(p))
         if args.diagnose:
-            _print_diagnosis(query)
+            _print_diagnosis(query, p)
         return 1
 
-    print(p.paint(f"\n  找到 {len(results)} 条相关解释：\n", p.bold))
-    for i, m in enumerate(results, 1):
-        print(_render_match(m, p, index=i))
-        if i != len(results):
-            print()
+    if len(results) == 1:
+        # 单条结果不需要「找到 1 条」这种废话，直接上正文
+        print()
+        print(_render_match(results[0], p, index=1, full=args.full, show_meta=False))
+    else:
+        print(p.paint(f"\n  找到 {len(results)} 条相关解释：\n", p.bold))
+        for i, m in enumerate(results, 1):
+            print(_render_match(m, p, index=i, full=args.full))
+            if i != len(results):
+                print()
     if args.diagnose:
-        _print_diagnosis(query)
+        _print_diagnosis(query, p)
     print()
     return 0
 
