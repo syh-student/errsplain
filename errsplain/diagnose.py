@@ -824,7 +824,8 @@ def render(findings: list[Finding], palette=None) -> str:
 
     cols = shutil.get_terminal_size(fallback=(100, 24)).columns
     cols = max(cols, 46)
-    paint = (lambda text, color: f"{color}{text}\033[0m") if palette else (lambda t, c: t)
+    # 用 palette.paint：颜色关闭时它不会硬塞一个 \033[0m 进管道输出
+    paint = palette.paint if palette else (lambda t, c: t)
     ok_color = {True: palette.green if palette else "", False: palette.red if palette else ""}
     lines = ["  " + paint("── 现场诊断（基于你本机的实际状态）──", palette.bold + palette.cyan if palette else "")]
     for f in findings:

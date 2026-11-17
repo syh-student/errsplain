@@ -107,6 +107,8 @@ def wrap(
     等宽（悬挂缩进）。已有换行符会被保留为独立断行。
     """
     width = max(width, 20)
+    # 制表符在终端里会跳到下一个 8 列制表位，按 1 列算会撑破行宽
+    text = text.expandtabs(8)
     lines: list[str] = []
     cur = first_prefix
     cur_w = disp_width(first_prefix)

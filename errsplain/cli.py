@@ -137,10 +137,17 @@ def _read_query(args: argparse.Namespace) -> str:
     if args.error:
         parts.append(" ".join(args.error))
     if args.file:
-        parts.append(Path(args.file).read_text(encoding="utf-8", errors="replace"))
+        parts.append(Path(args.file).read_text(encoding="utf-8-sig", errors="replace"))
     if args.stdin:
         parts.append(sys.stdin.read())
     return "\n".join(parts).strip()
+
+
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("必须是正整数")
+    return n
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -156,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--file", "-f", help="从文件读取报错")
     parser.add_argument("--stdin", action="store_true", help="强制从标准输入读取")
     parser.add_argument("--category", "-c", help="只搜索某个分类，如 git / npm")
-    parser.add_argument("--top", "-n", type=int, default=3, help="最多显示几条结果 (默认 3)")
+    parser.add_argument("--top", "-n", type=_positive_int, default=3, help="最多显示几条结果 (默认 3)")
     parser.add_argument("--threshold", type=float, default=0.22, help="相关度阈值 (默认 0.22)")
     parser.add_argument("--no-color", action="store_true", help="禁用颜色输出")
     parser.add_argument(
@@ -191,7 +198,7 @@ def _render_hook(m: Match, p: Palette) -> str:
     for ln in wrap(e.meaning, W - 4):
         lines.append("    " + ln)
     if e.fixes:
-        for i, ln in enumerate(wrap(e.fixes[0], W - 9)):
+        for i, ln in enumerate(wrap(e.fixes[0], W - 10)):
             lines.append(
                 (p.paint("    试试：", p.bold + p.green) if i == 0 else "          ")
                 + ln
@@ -248,6 +255,8 @@ def main(argv: list[str] | None = None) -> int:
         return handle_diagnose_command(argv[1:])
 
     args = build_parser().parse_args(argv)
+    # 分类名统一小写，用户写 -c Git / -c " git " 也能命中
+    category = (args.category or "").strip().lower() or None
 
     use_color = (
         not args.no_color
@@ -280,10 +289,17 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print(f"共 {len(entries)} 条词条。用 --category 过滤，用 --stats 看分类。\n")
         for e in entries:
-            print(f"  {p.paint(e.id, p.cyan):<48} {p.paint(e.category, p.dim):<10} {e.title}")
+            # 先按显示宽度补空格再上色：直接 format 会把颜色转义码也算进宽度
+            id_pad = " " * max(1, 48 - disp_width(e.id))
+            cat_pad = " " * max(1, 10 - disp_width(e.category))
+            print("  " + p.paint(e.id, p.cyan) + id_pad + p.paint(e.category, p.dim) + cat_pad + e.title)
         return 0
 
-    query = _read_query(args)
+    try:
+        query = _read_query(args)
+    except OSError as exc:
+        print(p.paint(f"读取报错文件失败：{exc}", p.red), file=sys.stderr)
+        return 2
     if not query:
         if sys.stdin.isatty():
             print("请提供报错文本。示例: errsplain 'Module not found'")
@@ -295,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # 自动模式：只用最相关的一条，静默处理未命中（命令失败时不想被"没找到"刷屏）
     if args.hook:
-        auto = match(query, entries, category=args.category, top_k=1, threshold=0.45)
+        auto = match(query, entries, category=category, top_k=1, threshold=0.45)
         if auto:
             print(_render_hook(auto[0], p))
             return 0
@@ -304,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     results = match(
         query,
         entries,
-        category=args.category,
+        category=category,
         top_k=max(1, args.top),
         threshold=args.threshold,
     )
