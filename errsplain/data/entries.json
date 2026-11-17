@@ -1814,7 +1814,10 @@
       "patterns": [
         "could not connect to server",
         "connection refused",
-        "could not translate host name"
+        "could not translate host name",
+        "psql: error: connection to server",
+        "port 5432 failed",
+        "Is the server running on host"
       ],
       "meaning": "客户端连不上 PostgreSQL 服务。要么是服务没起，要么是地址/端口不对，或者网络/防火墙拦了。",
       "causes": [
@@ -1834,6 +1837,8 @@
       "tags": [
         "postgresql",
         "postgres",
+        "psql",
+        "5432",
         "connection",
         "connect",
         "连接",
