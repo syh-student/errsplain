@@ -212,7 +212,21 @@ def _print_diagnosis(query: str, p: Palette) -> None:
         pass
 
 
+def _safe_output() -> None:
+    """输出被重定向到 cp1252 之类的编码时，打印中文不能直接崩溃。
+
+    保留控制台原有编码，只把编不出来的字符替换成 ?；CI 里再用
+    PYTHONIOENCODING=utf-8 拿到正常中文。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, OSError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _safe_output()
     # `errsplain hook ...` 子命令：安装/卸载/查看自动翻译 hook
     if argv is None:
         argv = sys.argv[1:]

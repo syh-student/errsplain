@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows runner 的 stdout 默认是 cp1252，打印中文会 UnicodeEncodeError
+      PYTHONIOENCODING: utf-8
     strategy:
       fail-fast: false
       matrix:
