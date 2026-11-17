@@ -7628,6 +7628,208 @@
         "import"
       ],
       "note": "中文报错缺少语言线索。用英文原文（如 ModuleNotFoundError）能得到更精确的答案。"
+    },
+    {
+      "id": "py-recursion-limit",
+      "category": "python",
+      "title": "Python：递归太深（RecursionError）",
+      "patterns": [
+        "RecursionError: maximum recursion depth exceeded",
+        "maximum recursion depth exceeded"
+      ],
+      "meaning": "函数递归调用的层数超过了 Python 的默认上限（通常 1000 层），解释器为了保护栈直接报错。",
+      "causes": [
+        "递归函数没有终止条件，或终止条件永远达不到",
+        "遍历树/链表等结构时形成了环，互相递归",
+        "每次递归都生成新对象，参数没有向终止条件收敛"
+      ],
+      "fixes": [
+        "检查递归函数是否有能到达的 base case",
+        "打印每次递归的参数，确认它确实在变小/收敛",
+        "能改成循环的就改成循环，避免依赖递归深度",
+        "确实需要深递归时用 sys.setrecursionlimit(更大值)，并评估栈溢出风险"
+      ],
+      "tags": [
+        "python",
+        "recursion",
+        "递归",
+        "栈"
+      ],
+      "note": "调高 recursionlimit 只是把崩溃点往后推，根本原因通常是终止条件写错。"
+    },
+    {
+      "id": "py-broken-pipe",
+      "category": "python",
+      "title": "Python：管道已关闭（BrokenPipeError）",
+      "patterns": [
+        "BrokenPipeError",
+        "[Errno 32] Broken pipe"
+      ],
+      "meaning": "程序往一个已经被对端关闭的管道或套接字写数据。常见于 python script.py | head 这类下游提前退出的管道。",
+      "causes": [
+        "下游命令（head / less / grep）读够了自己先退出",
+        "网络连接被对端关闭后程序还在写",
+        "多进程/多线程同时写同一个管道"
+      ],
+      "fixes": [
+        "CLI 里被 head 截断时，捕获 BrokenPipeError 后安静退出即可",
+        "确认对端进程/服务是否还活着",
+        "服务器端在客户端断开时捕获异常，清理连接而不是继续写"
+      ],
+      "tags": [
+        "python",
+        "pipe",
+        "管道",
+        "网络",
+        "断开"
+      ],
+      "note": "在终端里用 head 截断输出时出现它通常是正常的，不需要改业务逻辑。"
+    },
+    {
+      "id": "npm-lifecycle-failed",
+      "category": "npm",
+      "title": "npm：生命周期脚本失败（ELIFECYCLE）",
+      "patterns": [
+        "npm ERR! code ELIFECYCLE",
+        "ELIFECYCLE"
+      ],
+      "meaning": "npm 执行某个包的脚本（通常是 build / postinstall / test）时以非零状态退出，npm 用 ELIFECYCLE 表示脚本生命周期失败。",
+      "causes": [
+        "构建脚本本身报错（语法错误、测试失败等）",
+        "依赖没装全，脚本找不到命令",
+        "Node 版本和项目要求不匹配",
+        "脚本里用了平台相关命令（Windows 上跑 Unix 命令）"
+      ],
+      "fixes": [
+        "往上看 npm 日志里第一个真正的错误，ELIFECYCLE 只是外层壳",
+        "删掉 node_modules 和 package-lock.json 后重新 npm install",
+        "检查 package.json 的 scripts 是否能在本机直接跑",
+        "确认 Node 版本（nvm / volta），必要时切换版本"
+      ],
+      "tags": [
+        "npm",
+        "node",
+        "构建",
+        "脚本"
+      ],
+      "note": "ELIFECYCLE 本身不说明原因，真正原因通常在它上面几行。"
+    },
+    {
+      "id": "mysql-syntax-error",
+      "category": "mysql",
+      "title": "MySQL：SQL 语法错误（ERROR 1064）",
+      "patterns": [
+        "ERROR 1064",
+        "You have an error in your SQL syntax",
+        "check the manual that corresponds to your MySQL server version"
+      ],
+      "meaning": "MySQL 解析 SQL 时遇到不认识的语法，通常是关键字拼错、缺逗号/引号，或用了当前版本不支持的写法。",
+      "causes": [
+        "关键字拼写错误",
+        "少了逗号、括号或引号",
+        "使用了新版本才有的语法",
+        "保留字当列名/表名，没有加反引号"
+      ],
+      "fixes": [
+        "看报错里 NEAR '...' 指向的位置，从那里往前检查",
+        "把保留字用反引号包起来，比如 `order`",
+        "在目标版本的 MySQL 上验证语法",
+        "把长 SQL 拆成几段逐段执行，定位出错的那一段"
+      ],
+      "tags": [
+        "mysql",
+        "sql",
+        "语法",
+        "数据库"
+      ],
+      "note": "NEAR 后面就是解析器卡住的位置，问题往往在它前面一个字符。"
+    },
+    {
+      "id": "git-dubious-ownership",
+      "category": "git",
+      "title": "Git：仓库所有者可疑（dubious ownership）",
+      "patterns": [
+        "detected dubious ownership in repository",
+        "dubious ownership"
+      ],
+      "meaning": "Git 发现仓库目录的所有者和当前用户不一致，出于安全考虑（CVE-2022-24765）拒绝执行操作。",
+      "causes": [
+        "用 sudo 或管理员身份跑过 git，文件属主变了",
+        "仓库从别的机器/用户拷过来，权限没跟着改",
+        "Windows 共享盘、WSL 或容器里的 UID 映射不一致"
+      ],
+      "fixes": [
+        "确认目录可信后执行：git config --global --add safe.directory <仓库路径>",
+        "不要图省事加 safe.directory *，会失去这层保护",
+        "或者把目录所有者改回当前用户"
+      ],
+      "tags": [
+        "git",
+        "ownership",
+        "safe.directory",
+        "权限"
+      ],
+      "note": "只把确实可信的仓库路径加进 safe.directory。"
+    },
+    {
+      "id": "pandas-parser-error",
+      "category": "python",
+      "title": "pandas：CSV 解析失败（ParserError）",
+      "patterns": [
+        "pandas.errors.ParserError",
+        "Error tokenizing data",
+        "CParserError"
+      ],
+      "meaning": "pandas 读 CSV 时行列数对不上，解析器在中途卡住。常见于分隔符不对、引号没闭合，或文件里混了表头/空行。",
+      "causes": [
+        "分隔符不是逗号（TSV、分号、竖线）",
+        "引号或换行导致一个字段跨了多行",
+        "某行列数比表头多/少",
+        "编码不对，把字节读成了错误字符"
+      ],
+      "fixes": [
+        "指定分隔符，例如 pd.read_csv(path, sep='\\t')",
+        "用 engine='python' 让 pandas 给出更具体的错误位置",
+        "跳过坏行：on_bad_lines='skip'（先确认跳过的是噪声）",
+        "用文本编辑器打开报错行，检查引号和列数"
+      ],
+      "tags": [
+        "python",
+        "pandas",
+        "csv",
+        "数据",
+        "解析"
+      ],
+      "note": "报错里的 Expected X fields, saw Y 会直接告诉你哪一行列数不对。"
+    },
+    {
+      "id": "docker-pull-denied",
+      "category": "docker",
+      "title": "Docker：拉取镜像被拒绝（pull access denied）",
+      "patterns": [
+        "pull access denied for",
+        "requested access to the resource is denied"
+      ],
+      "meaning": "Docker 拉镜像时被仓库拒绝，通常是镜像名写错、私有仓库没登录，或账号没有该镜像的读权限。",
+      "causes": [
+        "镜像名或 tag 拼错",
+        "没有 docker login",
+        "私有仓库权限不足",
+        "仓库限流或配额用尽"
+      ],
+      "fixes": [
+        "核对镜像名和 tag：docker pull 仓库/镜像:标签",
+        "登录后再试：docker login",
+        "确认账号对该仓库有读权限",
+        "检查镜像是否真的发布过，而不是只有本地构建"
+      ],
+      "tags": [
+        "docker",
+        "镜像",
+        "拉取",
+        "权限"
+      ],
+      "note": "pull access denied 也可能是镜像根本不存在，Docker 为了安全不区分“不存在”和“没权限”。"
     }
   ]
 }

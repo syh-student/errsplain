@@ -55,6 +55,12 @@ class TestWrap(unittest.TestCase):
         lines = wrap("第一行\n第二行", 40)
         self.assertEqual(len(lines), 2)
 
+    def test_tabs_expanded_before_wrapping(self):
+        # 制表符按 8 列制表位展开，不能把行撑破
+        lines = wrap("a\tb\tc" * 10, 30)
+        for ln in lines:
+            self.assertLessEqual(disp_width(ln), 32)
+
     def test_extremely_narrow_width(self):
         # 不应抛异常也不应死循环
         lines = wrap("中文内容测试" * 5, 20)
