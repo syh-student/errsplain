@@ -61,7 +61,7 @@ def _render_match(
     e = m.entry
     W = _term_width()
     lines: list[str] = []
-    lines.append("  " + p.paint(f"[{index}] {e.title}", p.bold + p.cyan))
+    lines.append("  " + p.paint(f"[{index}] {e.title}", p.bold + p.red))
     if show_meta:
         lines.append(
             "      "
@@ -104,7 +104,7 @@ def _numbered(items: list[str], width: int) -> list[str]:
 def _render_no_match(p: Palette) -> str:
     return "\n".join(
         [
-            p.paint("  没找到匹配的词条。", p.yellow),
+            p.paint("  没找到匹配的词条。", p.bold + p.red),
             "",
             "  可以试试：",
             "    · 只贴报错的关键那一行（去掉路径、时间戳等噪声）",
@@ -187,7 +187,7 @@ def _render_hook(m: Match, p: Palette) -> str:
     e = m.entry
     W = _term_width()
     head = truncate(f"errsplain → [{e.category}] {e.title}  ({m.confidence})", W - 2)
-    lines = ["  " + p.paint(head, p.bold + p.cyan)]
+    lines = ["  " + p.paint(head, p.bold + p.red)]
     for ln in wrap(e.meaning, W - 4):
         lines.append("    " + ln)
     if e.fixes:
