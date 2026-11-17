@@ -15,7 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # ubuntu-latest(26.04) 的 setup-python 还没有 3.9，用 22.04 保留对 3.9 的覆盖
+        os: [ubuntu-22.04, windows-latest, macos-latest]
         python: ["3.9", "3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
