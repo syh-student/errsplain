@@ -3,7 +3,9 @@
 **把天书般的报错翻译成人话。**
 **不止告诉你「大概是什么问题」，还去你机器上查「现在到底是什么状态」。**
 
-纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库
+**命令行 + IDE 剪贴板** · 纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库
+
+终端里用管道直读；在 VS Code / PyCharm / IDEA / Rider 等 IDE 里复制报错，也能用 `errsplain watch` / `errsplain clip` 翻译（Windows）。
 
 犯错不可怕，看不懂报错才可怕。`errsplain` 让一段 `fatal: refusing to merge unrelated histories` 变成：
 
