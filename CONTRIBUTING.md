@@ -31,12 +31,12 @@
 | `meaning` | 是 | 人话解释，别照抄文档腔 |
 | `causes` | 否 | 常见原因，按可能性从高到低排 |
 | `fixes` | 否 | 可操作的步骤，命令要能直接复制 |
-| `tags` | 否 | 提高命中率的关键词，中英文都写 |
+| `tags` | 否 | 提高命中率的关键词数组，中英文都写；整段注意事项请放 `note`，不要塞进 `tags` |
 | `note` | 否 | 补充说明、警告 |
 
 可用分类：
 
-- **语言**：go / python / typescript / java / rust / cpp / csharp / kotlin / php / ruby / scala / swift / perl / lua / r / elixir / haskell / dart / zig
+- **语言与框架**：go / python / typescript / java / spring / rust / cpp / csharp / kotlin / php / ruby / scala / swift / perl / lua / r / elixir / haskell / dart / zig
 - **数据库与中间件**：postgresql / mysql / sqlite / sqlserver / oracle / mongodb / redis / cassandra / neo4j / mariadb / clickhouse / elasticsearch / rabbitmq / rocketmq / kafka
 - **前端与移动端**：frontend / npm / node / android / ios / mobile
 - **云原生与基建**：docker / kubernetes / terraform / aws / ansible / ci / nginx / apache / tomcat / iis
@@ -59,7 +59,18 @@
 python -m errsplain --validate          # 校验 JSON 和字段
 python -m unittest discover -s tests    # 跑测试
 python -m errsplain "你新加的报错原文"   # 确认能命中、结果合理
+python -m build                         # 构建源码包和 wheel（先安装 dev 依赖）
 ```
+
+默认测试不会读写真实剪贴板。若要在 Windows 上显式运行真实剪贴板集成测试：
+
+```powershell
+$env:ERRSPLAIN_TEST_REAL_CLIPBOARD = "1"
+python -m unittest tests.test_clipboard
+Remove-Item Env:ERRSPLAIN_TEST_REAL_CLIPBOARD
+```
+
+该集成测试会在修改前保存原剪贴板文本，并在 `finally` 中恢复。
 
 然后开 PR。一个 PR 加一条或几条相关词条都可以。
 

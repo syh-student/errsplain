@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,18 +8,18 @@ version = "0.1.0"
 description = "把天书般的报错翻译成人话 —— 纯离线、零依赖的报错翻译官，支持命令行与 IDE 剪贴板（VS Code、Visual Studio、PyCharm、IDEA、Rider 等），还能现场诊断你的环境"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "errsplain contributors" }]
 keywords = [
     "error", "errors", "debugging", "troubleshooting", "cli",
-    "offline", "diagnose", "报错", "调试", "报错翻译",
+    "offline", "diagnose", "clipboard", "ide", "vscode", "pycharm",
+    "报错", "调试", "报错翻译",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: Chinese (Simplified)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -44,8 +44,8 @@ Changelog = "https://github.com/syh-student/errsplain/releases"
 [project.optional-dependencies]
 # 本项目的测试全部基于标准库 unittest，无需额外依赖：
 #   python -m unittest discover -s tests
-# 这里保留 dev 组是为了给习惯 pytest 的贡献者一个入口。
-dev = ["pytest>=7"]
+# 这里保留 dev 组，包含 pytest 入口和打包验收工具。
+dev = ["pytest>=7", "build>=1.2"]
 
 [project.scripts]
 errsplain = "errsplain.cli:main"

@@ -55,6 +55,18 @@ class TestNoCrossCategoryConfusion(unittest.TestCase):
     def test_port_in_use_goes_to_npm(self):
         self._assert_matches_category("Error: listen EADDRINUSE :::3000", "npm")
 
+    def test_pvc_unbound_is_not_crashloop(self):
+        """PVC 未绑定是存储/Pending 问题，不能给出容器反复重启的解释。"""
+        r = match(
+            "pod has unbound immediate PersistentVolumeClaims",
+            self.entries,
+            top_k=1,
+            threshold=0.45,
+        )
+        self.assertTrue(r, "PVC 未绑定报错应能命中")
+        self.assertEqual(r[0].entry.id, "k8s-pvc-unbound")
+        self.assertNotIn("CrashLoopBackOff", r[0].entry.title)
+
 
 class TestBenignInputsStaySilent(unittest.TestCase):
     """普通文本/成功输出不该触发任何解释（hook 模式靠这个保持安静）。"""

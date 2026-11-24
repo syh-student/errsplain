@@ -2197,7 +2197,11 @@
         "FailedScheduling",
         "0/1 nodes are available",
         "Insufficient",
-        "nodes are available"
+        "nodes are available",
+        "pod is pending",
+        "Insufficient cpu",
+        "Insufficient memory",
+        "node(s) had taint"
       ],
       "meaning": "Pod 创建成功了但调度器找不到合适的节点放它。看 FailedScheduling 事件里的原因。",
       "causes": [
@@ -2221,7 +2225,43 @@
         "调度",
         "资源"
       ],
-      "note": ""
+      "note": "describe 的 Events 会直接告诉你卡在哪个条件。"
+    },
+    {
+      "id": "k8s-pvc-unbound",
+      "category": "kubernetes",
+      "title": "Kubernetes：PVC 未绑定（unbound immediate PersistentVolumeClaims）",
+      "patterns": [
+        "pod has unbound immediate PersistentVolumeClaims",
+        "unbound immediate PersistentVolumeClaims",
+        "persistentvolumeclaim is not bound"
+      ],
+      "meaning": "Pod 需要的 PersistentVolumeClaim 还没有绑定到 PersistentVolume，容器通常还没真正启动，所以这不是 CrashLoopBackOff。",
+      "causes": [
+        "StorageClass 不存在、名字写错，或集群没有默认 StorageClass",
+        "动态供给 provisioner 未运行或没有权限",
+        "现有 PV 的容量、访问模式或 StorageClass 与 PVC 不匹配",
+        "PVC 的名字或 namespace 写错",
+        "StorageClass 使用 WaitForFirstConsumer，需要先满足 Pod 调度条件"
+      ],
+      "fixes": [
+        "看 PVC 状态：kubectl get pvc -n <namespace>，确认是否一直 Pending",
+        "看绑定失败原因：kubectl describe pvc <pvc> -n <namespace>，重点看 Events",
+        "检查 StorageClass：kubectl get storageclass，并核对 storageClassName 与 provisioner",
+        "核对 PVC 的 accessModes、resources.requests.storage 与可用 PV 是否匹配",
+        "使用 WaitForFirstConsumer 时，同时检查 Pod 的 FailedScheduling 事件"
+      ],
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "pvc",
+        "pv",
+        "persistentvolumeclaim",
+        "storageclass",
+        "存储",
+        "pending"
+      ],
+      "note": "不要因为 Pod Pending 就反复重启容器；先解决 PVC、PV 或 StorageClass 的绑定问题。"
     },
     {
       "id": "k8s-oomkilled",
@@ -2550,14 +2590,17 @@
         "引号没闭合",
         "括号、if/fi、case/esac 等没配对",
         "管道符 | 或 && 后面没接命令",
-        "脚本是 Windows 编辑的，含 CRLF 或 BOM"
+        "脚本是 Windows 编辑的，含 CRLF 或 BOM",
+        "脚本 shebang 指向不存在的解释器",
+        "在 sh 里用了 bash 专有语法"
       ],
       "fixes": [
         "检查报错位置附近的引号和括号是否配对",
         "确认管道/逻辑运算符后跟了命令",
         "脚本用 bash -n script.sh 检查语法（不执行）",
         "CRLF 问题：dos2unix script.sh 或 sed -i 's/\\r$//' script.sh",
-        "用 shellcheck 工具做静态检查"
+        "用 shellcheck 工具做静态检查",
+        "确认 shebang：#!/usr/bin/env bash，并用 bash 执行"
       ],
       "tags": [
         "shell",
@@ -2567,7 +2610,7 @@
         "引号",
         "crlf"
       ],
-      "note": ""
+      "note": "Windows 编辑的脚本传到 Linux 报「奇怪语法错误」，先查 CRLF。"
     },
     {
       "id": "maven-dependency-not-found",
@@ -2687,8 +2730,8 @@
         "检查防火墙/云服务器安全组是否放行该端口",
         "远程服务要确认监听 0.0.0.0 而非 127.0.0.1"
       ],
-      "tags": "curl (7) 是 TCP 连接阶段失败，DNS 已通过。",
-      "note": ""
+      "tags": [],
+      "note": "curl (7) 是 TCP 连接阶段失败，DNS 已通过。"
     },
     {
       "id": "net-curl-28-timeout",
@@ -2713,8 +2756,8 @@
         "检查代理环境变量：echo $HTTPS_PROXY（Windows: echo %HTTPS_PROXY%）",
         "换网络或重试，排除临时抖动"
       ],
-      "tags": "curl (28) 常见于大文件下载、慢接口、跨境网络。",
-      "note": ""
+      "tags": [],
+      "note": "curl (28) 常见于大文件下载、慢接口、跨境网络。"
     },
     {
       "id": "net-curl-35-ssl-connect-error",
@@ -2739,8 +2782,8 @@
         "更新 curl / OpenSSL 到最新版",
         "确认是否走了会做 TLS 拦截的公司代理"
       ],
-      "tags": "curl (35) 是握手层失败，和证书校验（60）是两码事。",
-      "note": ""
+      "tags": [],
+      "note": "curl (35) 是握手层失败，和证书校验（60）是两码事。"
     },
     {
       "id": "net-curl-60-ssl-certificate",
@@ -2765,8 +2808,8 @@
         "先确认系统时间正确",
         "临时绕过（仅限可信内网）：curl -k URL，跳过校验有中间人风险"
       ],
-      "tags": "别把 -k / --insecure 当常规解法，公网场景等于关闭了身份验证。",
-      "note": ""
+      "tags": [],
+      "note": "别把 -k / --insecure 当常规解法，公网场景等于关闭了身份验证。"
     },
     {
       "id": "net-curl-51-cert-hostname-mismatch",
@@ -2791,8 +2834,8 @@
         "检查 hosts 文件或代理是否改写了解析",
         "确认访问的 IP 确实属于目标服务"
       ],
-      "tags": "SAN（Subject Alternative Name）才是现代校验依据，CN 已被弃用。",
-      "note": ""
+      "tags": [],
+      "note": "SAN（Subject Alternative Name）才是现代校验依据，CN 已被弃用。"
     },
     {
       "id": "net-curl-22-http-error",
@@ -2818,8 +2861,8 @@
         "5xx 是服务端问题，稍后重试或联系服务方",
         "配合 -f/--fail 让脚本在 HTTP 错误时返回非零退出码"
       ],
-      "tags": "curl 默认即使 404 也返回 0，脚本里记得加 -f 才能靠退出码判断失败。",
-      "note": ""
+      "tags": [],
+      "note": "curl 默认即使 404 也返回 0，脚本里记得加 -f 才能靠退出码判断失败。"
     },
     {
       "id": "net-curl-56-connection-reset",
@@ -2843,8 +2886,8 @@
         "用 curl -v 看断在哪个阶段",
         "大文件上传/下载考虑分片或断点续传 -C -"
       ],
-      "tags": "curl (56) 和 (7) 不同：(7) 是压根没连上，(56) 是连上后被断开。",
-      "note": ""
+      "tags": [],
+      "note": "curl (56) 和 (7) 不同：(7) 是压根没连上，(56) 是连上后被断开。"
     },
     {
       "id": "net-wget-unable-to-resolve",
@@ -2867,8 +2910,8 @@
         "更换 DNS 服务器",
         "检查系统 DNS 配置（Linux: /etc/resolv.conf）"
       ],
-      "tags": "这是 wget 版的 curl (6)，本质都是 DNS 问题。",
-      "note": ""
+      "tags": [],
+      "note": "这是 wget 版的 curl (6)，本质都是 DNS 问题。"
     },
     {
       "id": "net-wget-connection-timed-out",
@@ -2892,7 +2935,7 @@
         "检查代理设置",
         "稍后重试排除临时故障"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -2917,8 +2960,8 @@
         "确认 URL 是否需要特定 Referer",
         "被封 IP 时换网络或降低请求频率"
       ],
-      "tags": "curl 对应的是 HTTP 403 响应，wget 会直接报 ERROR 403。",
-      "note": ""
+      "tags": [],
+      "note": "curl 对应的是 HTTP 403 响应，wget 会直接报 ERROR 403。"
     },
     {
       "id": "net-ssh-connection-refused",
@@ -2942,8 +2985,8 @@
         "指定端口：ssh -p 2222 user@host",
         "检查防火墙/安全组放行 22（或自定义端口）"
       ],
-      "tags": "注意区分：Connection refused 是端口没人听；Connection timed out 多半是被防火墙静默丢弃。",
-      "note": ""
+      "tags": [],
+      "note": "注意区分：Connection refused 是端口没人听；Connection timed out 多半是被防火墙静默丢弃。"
     },
     {
       "id": "net-ssh-permission-denied-publickey",
@@ -2967,8 +3010,8 @@
         "确认公钥已加入服务端 authorized_keys",
         "调试：ssh -v user@host 看认证过程"
       ],
-      "tags": "Windows 上注意 OpenSSH 客户端路径（C:\\Users\\你\\.ssh\\）。",
-      "note": ""
+      "tags": [],
+      "note": "Windows 上注意 OpenSSH 客户端路径（C:\\Users\\你\\.ssh\\）。"
     },
     {
       "id": "net-ssh-host-key-verification-failed",
@@ -2992,8 +3035,8 @@
         "或用 vim 删除 ~/.ssh/known_hosts 里对应那一行",
         "下次连接会提示是否信任新密钥，确认指纹无误再接受"
       ],
-      "tags": "这个警告是安全特性，绝不要无条件忽略——先确认服务器身份再操作。",
-      "note": ""
+      "tags": [],
+      "note": "这个警告是安全特性，绝不要无条件忽略——先确认服务器身份再操作。"
     },
     {
       "id": "net-ssh-timeout",
@@ -3017,8 +3060,8 @@
         "检查安全组/防火墙是否放行",
         "内网机器先连 VPN"
       ],
-      "tags": "refused = 对方明确拒绝；timed out = 对方根本没回应，多半被拦。",
-      "note": ""
+      "tags": [],
+      "note": "refused = 对方明确拒绝；timed out = 对方根本没回应，多半被拦。"
     },
     {
       "id": "net-ssh-too-many-auth",
@@ -3039,7 +3082,7 @@
         "禁用 agent 转发：ssh -o IdentitiesOnly=yes -i key user@host",
         "清理 ssh-agent 里多余的密钥：ssh-add -D"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3064,15 +3107,14 @@
         "Linux 检查 /etc/resolv.conf；Windows 用 ipconfig /flushdns",
         "确认网络已连接、VPN 状态正常"
       ],
-      "tags": "这是系统级 DNS 问题，curl (6)、wget 无法解析、ping unknown host 都是它的具体表现。",
-      "note": ""
+      "tags": [],
+      "note": "这是系统级 DNS 问题，curl (6)、wget 无法解析、ping unknown host 都是它的具体表现。"
     },
     {
       "id": "net-ping-unknown-host",
       "category": "network",
       "title": "ping：无法识别主机（ping: unknown host / Name or service not known）",
       "patterns": [
-        "ping: unknown host",
         "ping: unknown host",
         "unknown host"
       ],
@@ -3087,7 +3129,7 @@
         "用 IP 直接 ping 排除 DNS：ping 8.8.8.8",
         "检查 DNS 配置，flush 缓存后重试"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3096,7 +3138,6 @@
       "title": "网络不可达（Network is unreachable / No route to host）",
       "patterns": [
         "Network is unreachable",
-        "No route to host",
         "No route to host"
       ],
       "meaning": "系统找不到通往目标网络的路径——多半是本机路由表、网关配置的问题，或目标网段根本不通。",
@@ -3112,7 +3153,7 @@
         "需要内网/私网的先连 VPN",
         "重启网络服务或重新连接网络"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3136,7 +3177,7 @@
         "检查 token 是否过期，重新获取",
         "确认认证方式（Basic/Bearer/OAuth）用对了"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3161,8 +3202,8 @@
         "需要登录的先拿 cookie/token",
         "确认不是被 IP 封禁"
       ],
-      "tags": "401 vs 403：前者问「你是谁」，后者说「你不配」。",
-      "note": ""
+      "tags": [],
+      "note": "401 vs 403：前者问「你是谁」，后者说「你不配」。"
     },
     {
       "id": "net-http-404-not-found",
@@ -3186,7 +3227,7 @@
         "查 API 文档确认 endpoint 是否变更",
         "检查是否需要尾部斜杠或特定参数"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3214,8 +3255,8 @@
         "确认请求本身是否合理",
         "504 可尝试增大客户端超时"
       ],
-      "tags": "如果是自己的服务，去查服务端日志才是正道——客户端能做的有限。",
-      "note": ""
+      "tags": [],
+      "note": "如果是自己的服务，去查服务端日志才是正道——客户端能做的有限。"
     },
     {
       "id": "net-proxy-407-auth-required",
@@ -3238,8 +3279,8 @@
         "确认代理账号有效",
         "不需要代理时清掉变量：unset HTTP_PROXY HTTPS_PROXY"
       ],
-      "tags": "407 是代理要认证，401 是目标服务器要认证——别搞混。",
-      "note": ""
+      "tags": [],
+      "note": "407 是代理要认证，401 是目标服务器要认证——别搞混。"
     },
     {
       "id": "net-proxy-connect-failed",
@@ -3264,7 +3305,7 @@
         "用 curl -v 看连接代理的细节",
         "协议要对：socks5 用 socks5://，HTTP 代理用 http://"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3292,8 +3333,8 @@
         "走代理：git config --global http.proxy http://proxy:port",
         "临时跳过校验（不推荐）：git config --global http.sslVerify false"
       ],
-      "tags": "git 的 HTTPS 传输底层就是 curl，错误码和 curl 一致。",
-      "note": ""
+      "tags": [],
+      "note": "git 的 HTTPS 传输底层就是 curl，错误码和 curl 一致。"
     },
     {
       "id": "net-connection-reset-by-peer",
@@ -3317,8 +3358,8 @@
         "排查服务端日志为何断连",
         "检查防火墙/NAT 的空闲超时设置"
       ],
-      "tags": "和 ECONNREFUSED 区别：refused 是没连上，reset 是连上后被掐断。",
-      "note": ""
+      "tags": [],
+      "note": "和 ECONNREFUSED 区别：refused 是没连上，reset 是连上后被掐断。"
     },
     {
       "id": "net-dns-server-misconfigured",
@@ -3343,7 +3384,7 @@
         "Linux 检查 /etc/resolv.conf 的 nameserver",
         "确认 UDP 53 没被防火墙拦"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3369,8 +3410,8 @@
         "把程序目录加进 PATH，重开终端",
         "当前目录的程序要用 .\\程序名（CMD）或 .\\程序名（PowerShell）"
       ],
-      "tags": "PowerShell 默认不搜索当前目录，必须写 ./。",
-      "note": ""
+      "tags": [],
+      "note": "PowerShell 默认不搜索当前目录，必须写 ./。"
     },
     {
       "id": "win-execution-policy",
@@ -3394,8 +3435,8 @@
         "查看当前策略：Get-ExecutionPolicy -List",
         "公司组策略锁定需联系管理员"
       ],
-      "tags": "RemoteSigned 是兼顾安全和可用的常用选择，别直接设 Unrestricted。",
-      "note": ""
+      "tags": [],
+      "note": "RemoteSigned 是兼顾安全和可用的常用选择，别直接设 Unrestricted。"
     },
     {
       "id": "win-access-denied",
@@ -3422,7 +3463,7 @@
         "确认没有程序占用该文件",
         "系统目录/Program Files 下的操作基本都要管理员权限"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3451,8 +3492,8 @@
         "结束占用：taskkill /PID 进程号 /F",
         "换个端口，或等上一个进程完全退出"
       ],
-      "tags": "Linux/macOS 上对应的报错是 EADDRINUSE，排查命令换成 lsof -i :端口。",
-      "note": ""
+      "tags": [],
+      "note": "Linux/macOS 上对应的报错是 EADDRINUSE，排查命令换成 lsof -i :端口。"
     },
     {
       "id": "win-file-in-use",
@@ -3476,7 +3517,7 @@
         "用 Process Explorer 搜索句柄定位占用进程",
         "代码里记得关闭文件流/连接，别泄漏句柄"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3502,7 +3543,7 @@
         "检查当前工作目录：cd",
         "Windows 路径用反斜杠或正斜杠都行，但别混用转义"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3529,8 +3570,8 @@
         "确认程序和 DLL 的位数一致（x86/x64）",
         "用 Dependencies 工具查看缺哪个依赖"
       ],
-      "tags": "别从不明网站下载单个 DLL 塞进 System32，安全风险大。",
-      "note": ""
+      "tags": [],
+      "note": "别从不明网站下载单个 DLL 塞进 System32，安全风险大。"
     },
     {
       "id": "pip-no-matching-distribution",
@@ -3554,7 +3595,7 @@
         "换官方源试：pip install 包名 -i https://pypi.org/simple",
         "检查是不是在离线/内网环境"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3578,8 +3619,8 @@
         "确实要装到系统：pip install --break-system-packages 包名（不推荐）",
         "macOS/Homebrew 环境同理，用 venv 最稳"
       ],
-      "tags": "--break-system-packages 可能弄坏系统工具，仅在明确知道后果时用。",
-      "note": ""
+      "tags": [],
+      "note": "--break-system-packages 可能弄坏系统工具，仅在明确知道后果时用。"
     },
     {
       "id": "pip-timeout",
@@ -3603,8 +3644,8 @@
         "检查代理设置",
         "重试几次，排除临时抖动"
       ],
-      "tags": "pip 底层走的也是 HTTP，和 network 分类的超时是一类问题。",
-      "note": ""
+      "tags": [],
+      "note": "pip 底层走的也是 HTTP，和 network 分类的超时是一类问题。"
     },
     {
       "id": "pip-permission",
@@ -3627,7 +3668,7 @@
         "Windows 以管理员身份运行终端",
         "别用 sudo pip，容易弄坏系统环境"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3653,8 +3694,8 @@
         "Git Bash/Linux/macOS 用 source .venv/bin/activate",
         "PowerShell 报策略错误先 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned"
       ],
-      "tags": "激活成功后命令行前面会出现 (.venv) 标志。",
-      "note": ""
+      "tags": [],
+      "note": "激活成功后命令行前面会出现 (.venv) 标志。"
     },
     {
       "id": "django-settings-module",
@@ -3679,7 +3720,7 @@
         "确认 settings.py 所在的包有 __init__.py",
         "核对模块名大小写和点号路径"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3704,8 +3745,8 @@
         "确认连的是对的库：检查 settings.py 的 DATABASES",
         "本地开发想重来：删掉迁移文件和 db.sqlite3 重建"
       ],
-      "tags": "和 postgresql 的表不存在是同一类问题，但这里是 Django 的解决路径。",
-      "note": ""
+      "tags": [],
+      "note": "和 postgresql 的表不存在是同一类问题，但这里是 Django 的解决路径。"
     },
     {
       "id": "pytest-no-tests",
@@ -3730,7 +3771,7 @@
         "在项目根目录运行 pytest，或用 pytest 路径 指定",
         "看收集错误详情：pytest --collect-only"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3755,8 +3796,8 @@
         "GBK 文件就用 encoding=\"gbk\"",
         "写文件时也显式指定 encoding，别依赖默认值"
       ],
-      "tags": "Windows 中文环境默认 GBK，是这类错误的高发地。",
-      "note": ""
+      "tags": [],
+      "note": "Windows 中文环境默认 GBK，是这类错误的高发地。"
     },
     {
       "id": "fe-cors-blocked",
@@ -3781,8 +3822,8 @@
         "确保后端正确处理 OPTIONS 预检请求",
         "开发期可用代理（webpack/vite proxy）绕过，别在生产用 * 放行所有来源"
       ],
-      "tags": "CORS 是浏览器行为，用 curl 直接请求通常是成功的——别误判成后端挂了。",
-      "note": ""
+      "tags": [],
+      "note": "CORS 是浏览器行为，用 curl 直接请求通常是成功的——别误判成后端挂了。"
     },
     {
       "id": "fe-vite-resolve-import",
@@ -3806,7 +3847,7 @@
         "在 vite.config.js 里配 resolve.alias",
         "检查文件扩展名（Vite 有时不自动补 .js/.ts）"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3831,7 +3872,7 @@
         "在 webpack.config 配 resolve.extensions: ['.js','.jsx','.ts','.tsx']",
         "用 npm ls 包名 检查是否真的装上"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3856,7 +3897,7 @@
         "核对规则名拼写",
         "升级 ESLint 时按官方迁移指南转换配置"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3881,7 +3922,7 @@
         "确认调用 Hook 的是函数组件或自定义 Hook",
         "npm ls react 检查是否有多份 React"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3908,7 +3949,7 @@
         "删掉 build 目录重新 cmake（清缓存）",
         "确认编译器可用：g++ --version"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3933,7 +3974,7 @@
         "检查 Makefile 里的路径",
         "在 Makefile 所在目录执行，或用 make -C 目录"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -3959,8 +4000,8 @@
         "-lxxx 对应 libxxx.so 或 libxxx.a，别写成 -llibxxx",
         "确认 32/64 位一致"
       ],
-      "tags": "和 undefined reference 的区别：这个是「库文件本身找不到」，那个是「库找到了但里面没这个符号」。",
-      "note": ""
+      "tags": [],
+      "note": "和 undefined reference 的区别：这个是「库文件本身找不到」，那个是「库找到了但里面没这个符号」。"
     },
     {
       "id": "php-composer-resolve",
@@ -3985,8 +4026,8 @@
         "加 -W 查看为什么没装：composer why-not 包名 版本",
         "国内换源：composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/"
       ],
-      "tags": "composer update 前先看 composer why-not，比盲试快得多。",
-      "note": ""
+      "tags": [],
+      "note": "composer update 前先看 composer why-not，比盲试快得多。"
     },
     {
       "id": "csharp-cs0246",
@@ -4010,7 +4051,7 @@
         "检查 .csproj 的 ProjectReference",
         "确认 .NET 目标框架支持该类型"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4036,7 +4077,7 @@
         "清缓存重试：dotnet nuget locals all --clear",
         "内网配私有源或本地包目录"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4062,8 +4103,8 @@
         "删 Gemfile.lock 重来（谨慎）：bundle update",
         "native 扩展失败要装编译工具链和开发库"
       ],
-      "tags": "macOS 上 native gem 编译失败很常见，通常缺 Xcode command line tools。",
-      "note": ""
+      "tags": [],
+      "note": "macOS 上 native gem 编译失败很常见，通常缺 Xcode command line tools。"
     },
     {
       "id": "dart-flutter-not-found",
@@ -4088,8 +4129,8 @@
         "在含 pubspec.yaml 的目录执行",
         "flutter doctor 检查环境完整性"
       ],
-      "tags": "flutter doctor 是排查环境问题的第一站。",
-      "note": ""
+      "tags": [],
+      "note": "flutter doctor 是排查环境问题的第一站。"
     },
     {
       "id": "sys-too-many-open-files",
@@ -4114,8 +4155,8 @@
         "检查代码里文件/连接是否都 close（用 with/try-finally）",
         "排查泄漏：lsof -p 进程号 | wc -l"
       ],
-      "tags": "systemd 服务要在 unit 文件里设 LimitNOFILE，改 limits.conf 对它不一定生效。",
-      "note": ""
+      "tags": [],
+      "note": "systemd 服务要在 unit 文件里设 LimitNOFILE，改 limits.conf 对它不一定生效。"
     },
     {
       "id": "sys-resource-temporarily-unavailable",
@@ -4140,7 +4181,7 @@
         "检查是否有进程泄漏/僵尸进程",
         "限制线程池大小，别无限创建"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4166,8 +4207,8 @@
         "优化代码分块处理，别一次性读入大文件",
         "调大内存/容器 limit，或加 swap（治标）"
       ],
-      "tags": "进程「突然消失没日志」时，先查 OOM killer。",
-      "note": ""
+      "tags": [],
+      "note": "进程「突然消失没日志」时，先查 OOM killer。"
     },
     {
       "id": "sys-disk-inode-full",
@@ -4191,8 +4232,8 @@
         "清理临时/缓存文件",
         "必要时重建文件系统调整 inode 数量"
       ],
-      "tags": "df -h 有空间但写不进去，第一反应就该看 df -i。",
-      "note": ""
+      "tags": [],
+      "note": "df -h 有空间但写不进去，第一反应就该看 df -i。"
     },
     {
       "id": "pkg-apt-dpkg-error",
@@ -4217,8 +4258,8 @@
         "看具体包：sudo dpkg --remove --force-remove-reinstreq 包名",
         "检查磁盘空间"
       ],
-      "tags": "apt 报错时先跑 --configure -a，能解决大半问题。",
-      "note": ""
+      "tags": [],
+      "note": "apt 报错时先跑 --configure -a，能解决大半问题。"
     },
     {
       "id": "pkg-homebrew-error",
@@ -4243,8 +4284,8 @@
         "brew doctor 看诊断建议",
         "必要时重装 Homebrew"
       ],
-      "tags": "永远不要用 sudo 跑 brew，这是绝大多数权限问题的根源。",
-      "note": ""
+      "tags": [],
+      "note": "永远不要用 sudo 跑 brew，这是绝大多数权限问题的根源。"
     },
     {
       "id": "pkg-node-engine-mismatch",
@@ -4268,8 +4309,8 @@
         "项目里加 .nvmrc 固定版本",
         "应急可 npm install --engine-strict=false（不推荐长期）"
       ],
-      "tags": "多项目开发建议用 nvm/fnm 管理 Node 版本，这是最省心的做法。",
-      "note": ""
+      "tags": [],
+      "note": "多项目开发建议用 nvm/fnm 管理 Node 版本，这是最省心的做法。"
     },
     {
       "id": "npm-missing-script",
@@ -4292,7 +4333,7 @@
         "确认在项目根目录执行",
         "monorepo 里要在对应子包目录跑"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4318,8 +4359,8 @@
         "检查用户角色：db.getUser(用户名)",
         "连接串检查特殊字符是否要 URL 编码"
       ],
-      "tags": "最常见坑：用户建在 admin 库，连接串却指向业务库又没写 authSource。",
-      "note": ""
+      "tags": [],
+      "note": "最常见坑：用户建在 admin 库，连接串却指向业务库又没写 authSource。"
     },
     {
       "id": "sqlite-no-such-table",
@@ -4344,8 +4385,8 @@
         "确认建表逻辑已执行",
         "database is locked：减少并发写/加 timeout"
       ],
-      "tags": "SQLite 用相对路径时，工作目录变了就会连到另一个库，这是高频坑。",
-      "note": ""
+      "tags": [],
+      "note": "SQLite 用相对路径时，工作目录变了就会连到另一个库，这是高频坑。"
     },
     {
       "id": "kafka-timeout",
@@ -4370,8 +4411,8 @@
         "检查 server.properties 的 advertised.listeners",
         "确认 topic 存在或允许 auto.create.topics.enable"
       ],
-      "tags": "advertised.listeners 是容器/K8s 部署 Kafka 最经典的坑。",
-      "note": ""
+      "tags": [],
+      "note": "advertised.listeners 是容器/K8s 部署 Kafka 最经典的坑。"
     },
     {
       "id": "jest-test-failed",
@@ -4398,8 +4439,8 @@
         "更新快照要谨慎：jest -u 前先确认变化合理",
         "单个文件调试：jest 文件路径 -t \"用例名\""
       ],
-      "tags": "别急着 jest -u，先确认快照变化是预期的。",
-      "note": ""
+      "tags": [],
+      "note": "别急着 jest -u，先确认快照变化是预期的。"
     },
     {
       "id": "json-decode-error",
@@ -4424,8 +4465,8 @@
         "空响应要判空再解析",
         "用 json.loads(内容, strict=False) 容错（谨慎）"
       ],
-      "tags": "调用 API 报这个错，九成是拿到了错误页而不是数据——先打印原始响应。",
-      "note": ""
+      "tags": [],
+      "note": "调用 API 报这个错，九成是拿到了错误页而不是数据——先打印原始响应。"
     },
     {
       "id": "systemd-service-failed",
@@ -4451,35 +4492,8 @@
         "手动跑一遍 ExecStart 的命令看真实报错",
         "检查运行用户和文件权限"
       ],
-      "tags": "systemctl status 只是表象，journalctl -u 才是真相。",
-      "note": ""
-    },
-    {
-      "id": "shell-command-syntax-error",
-      "category": "linux",
-      "title": "Shell：命令语法错误（syntax error near unexpected token）",
-      "patterns": [
-        "syntax error near unexpected token",
-        "syntax error: unexpected end of file",
-        "unexpected EOF while looking for matching",
-        "bad interpreter"
-      ],
-      "meaning": "shell 解析脚本时遇到语法错误——括号/引号没配对、或用错了 shell。",
-      "causes": [
-        "引号/括号不成对",
-        "if/for 缺 fi/done",
-        "Windows 换行符 CRLF 导致脚本报错",
-        "脚本 shebang 指向不存在的解释器",
-        "在 sh 里用了 bash 专有语法"
-      ],
-      "fixes": [
-        "用 bash -n 脚本 只做语法检查",
-        "检查配对：引号、括号、if/fi、for/done",
-        "CRLF 转换：dos2unix 脚本",
-        "确认 shebang：#!/usr/bin/env bash，并用 bash 执行"
-      ],
-      "tags": "Windows 编辑的脚本传到 Linux 报「奇怪语法错误」，先查 CRLF。",
-      "note": ""
+      "tags": [],
+      "note": "systemctl status 只是表象，journalctl -u 才是真相。"
     },
     {
       "id": "python-syntax-error",
@@ -4506,8 +4520,8 @@
         "检查缩进是否统一（建议全用 4 空格）",
         "确认 Python 版本：python -V"
       ],
-      "tags": "SyntaxError 是解析阶段错误，任何运行时调试手段都无效——先修语法。",
-      "note": ""
+      "tags": [],
+      "note": "SyntaxError 是解析阶段错误，任何运行时调试手段都无效——先修语法。"
     },
     {
       "id": "python-type-error",
@@ -4533,7 +4547,7 @@
         "参数个数对照函数签名",
         "注意 input() 返回的是字符串"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4560,8 +4574,8 @@
         "打印实际对象：console.log(JSON.stringify(obj))",
         "异步场景确认数据已就绪再渲染"
       ],
-      "tags": "可选链 ?. 和空值合并 ?? 是预防这类错误最有效的语法。",
-      "note": ""
+      "tags": [],
+      "note": "可选链 ?. 和空值合并 ?? 是预防这类错误最有效的语法。"
     },
     {
       "id": "android-gradle-sync-failed",
@@ -4586,8 +4600,8 @@
         "统一 gradle-wrapper 与 AGP 版本",
         "File → Project Structure 查 JDK 是否为 17+"
       ],
-      "tags": "Android 国内开发基本都要配镜像，否则同步会一直失败。",
-      "note": ""
+      "tags": [],
+      "note": "Android 国内开发基本都要配镜像，否则同步会一直失败。"
     },
     {
       "id": "android-sdk-not-found",
@@ -4612,7 +4626,7 @@
         "设环境变量 ANDROID_HOME 和 ANDROID_SDK_ROOT",
         "CI 里用 setup-android 或预装镜像"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4639,8 +4653,8 @@
         "清理设备存储",
         "核对 minSdkVersion 与设备版本"
       ],
-      "tags": "签名冲突（DEBUG 与 RELEASE 混装）是最常见的，卸载重装即可。",
-      "note": ""
+      "tags": [],
+      "note": "签名冲突（DEBUG 与 RELEASE 混装）是最常见的，卸载重装即可。"
     },
     {
       "id": "android-adb-device-offline",
@@ -4666,7 +4680,7 @@
         "关闭其他占用 adb 的程序",
         "Windows 装厂商 USB 驱动"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4691,7 +4705,7 @@
         "关闭 daemon 试：org.gradle.daemon=false",
         "清理构建缓存：./gradlew clean"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4718,8 +4732,8 @@
         "选对 Team",
         "去开发者后台重新生成描述文件"
       ],
-      "tags": "个人免费账号签名有效期只有 7 天，过期要重签。",
-      "note": ""
+      "tags": [],
+      "note": "个人免费账号签名有效期只有 7 天，过期要重签。"
     },
     {
       "id": "ios-cocoapods-error",
@@ -4745,8 +4759,8 @@
         "确认 Ruby 和 CocoaPods 版本：pod --version",
         "M1+ 用 arch -x86_64 pod install 兼容旧 pod"
       ],
-      "tags": "M1/M2 上老项目 pod install 失败，多半是 arm64 兼容问题。",
-      "note": ""
+      "tags": [],
+      "note": "M1/M2 上老项目 pod install 失败，多半是 arm64 兼容问题。"
     },
     {
       "id": "rn-metro-bundle-failed",
@@ -4772,8 +4786,8 @@
         "核对 import 路径大小写",
         "确认 index.js 里 registerComponent 的名字"
       ],
-      "tags": "RN 的「改完没生效」多半是 Metro 缓存，重置缓存是万能第一步。",
-      "note": ""
+      "tags": [],
+      "note": "RN 的「改完没生效」多半是 Metro 缓存，重置缓存是万能第一步。"
     },
     {
       "id": "rn-android-build-failed",
@@ -4798,7 +4812,7 @@
         "Android SDK Manager 装 NDK/CMake",
         "重装依赖并 clean：rm -rf node_modules && npm i && cd android && ./gradlew clean"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4822,8 +4836,8 @@
         "检查 CI 是否有僵尸任务",
         "团队用不同 workspace 隔离环境"
       ],
-      "tags": "force-unlock 前务必确认真没人在跑，否则可能损坏 state。",
-      "note": ""
+      "tags": [],
+      "note": "force-unlock 前务必确认真没人在跑，否则可能损坏 state。"
     },
     {
       "id": "tf-provider-download",
@@ -4849,8 +4863,8 @@
         "放宽/核对 required_providers 版本约束",
         "私有 registry 配置 credentials"
       ],
-      "tags": "国内常用腾讯/阿里云的 Terraform provider 镜像。",
-      "note": ""
+      "tags": [],
+      "note": "国内常用腾讯/阿里云的 Terraform provider 镜像。"
     },
     {
       "id": "tf-state-diverged",
@@ -4874,8 +4888,8 @@
         "误删的从 state 移除：terraform state rm",
         "绝对不要手改 state 文件"
       ],
-      "tags": "导入已有资源是接入存量基础设施的标准做法。",
-      "note": ""
+      "tags": [],
+      "note": "导入已有资源是接入存量基础设施的标准做法。"
     },
     {
       "id": "aws-credentials-missing",
@@ -4901,8 +4915,8 @@
         "检查环境变量 AWS_ACCESS_KEY_ID",
         "确认 IAM 用户 key 状态"
       ],
-      "tags": "别把 access key 写进代码仓库，用 IAM role 或环境变量。",
-      "note": ""
+      "tags": [],
+      "note": "别把 access key 写进代码仓库，用 IAM role 或环境变量。"
     },
     {
       "id": "aws-access-denied",
@@ -4927,8 +4941,8 @@
         "检查 S3 bucket policy / KMS key policy",
         "跨账号配置 sts:AssumeRole"
       ],
-      "tags": "报错里那句 not authorized to perform: xxx on resource: yyy 就是精确答案。",
-      "note": ""
+      "tags": [],
+      "note": "报错里那句 not authorized to perform: xxx on resource: yyy 就是精确答案。"
     },
     {
       "id": "aws-region-missing",
@@ -4953,7 +4967,7 @@
         "检查 ~/.aws/config",
         "确认该区域确实提供该服务"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -4979,7 +4993,7 @@
         "首次连接加 --ask-pass 或预置 known_hosts",
         "确认控制机私钥权限 600"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5002,7 +5016,7 @@
         "配置 NOPASSWD sudoers",
         "检查 become_user 设置"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5028,60 +5042,8 @@
         "回滚：helm rollback 名称 版本号",
         "卡在 pending 就卸载重装：helm uninstall 名称"
       ],
-      "tags": "--dry-run --debug 能在真正部署前暴露大部分模板错误。",
-      "note": ""
-    },
-    {
-      "id": "k8s-crashloop-backoff",
-      "category": "kubernetes",
-      "title": "Kubernetes：容器反复重启（CrashLoopBackOff）",
-      "patterns": [
-        "CrashLoopBackOff",
-        "Back-off restarting failed container",
-        "pod has unbound immediate PersistentVolumeClaims"
-      ],
-      "meaning": "Pod 里的容器启动后不断崩溃重启，K8s 按指数退避拉长重启间隔。",
-      "causes": [
-        "应用启动即报错（配置/依赖/端口）",
-        "健康检查探针配置不当导致被杀",
-        "资源 limit 太小被 OOMKill",
-        "启动命令/镜像入口错误"
-      ],
-      "fixes": [
-        "看容器日志：kubectl logs pod名 --previous",
-        "看事件：kubectl describe pod pod名",
-        "核对 liveness/readiness 探针的路径和延迟",
-        "检查 resources.limits 是否过小"
-      ],
-      "tags": "--previous 能看上一次崩溃前的日志，这是关键。",
-      "note": ""
-    },
-    {
-      "id": "k8s-pod-pending",
-      "category": "kubernetes",
-      "title": "Kubernetes：Pod 一直 Pending（0/1 nodes are available）",
-      "patterns": [
-        "0/1 nodes are available",
-        "pod is pending",
-        "Insufficient cpu",
-        "Insufficient memory",
-        "node(s) had taint"
-      ],
-      "meaning": "Pod 调度不出去——没有节点满足它的资源/亲和性/污点要求。",
-      "causes": [
-        "集群资源不足（CPU/内存）",
-        "节点有污点而 Pod 没有容忍",
-        "nodeSelector/亲和性 太严格",
-        "PVC 没绑定成功"
-      ],
-      "fixes": [
-        "看原因：kubectl describe pod 名（看 Events 最后几行）",
-        "加节点或减小 requests",
-        "补 tolerations 或去掉污点",
-        "检查 PVC/PV 是否 Available"
-      ],
-      "tags": "describe 的 Events 会直接告诉你卡在哪个条件。",
-      "note": ""
+      "tags": [],
+      "note": "--dry-run --debug 能在真正部署前暴露大部分模板错误。"
     },
     {
       "id": "compose-port-conflict",
@@ -5105,7 +5067,7 @@
         "停掉旧容器：docker compose down",
         "查全部容器：docker ps -a"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5130,7 +5092,7 @@
         "调整 healthcheck 的 interval/retries/start_period",
         "用 depends_on + condition: service_healthy"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5156,7 +5118,7 @@
         "给 job 加 permissions 配置",
         "用 actionlint 校验 workflow YAML"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5182,8 +5144,8 @@
         "Fork PR 场景改用 pull_request_target 或跳过",
         "核对 action 的 with: 参数"
       ],
-      "tags": "Fork 来的 PR 默认拿不到 secrets，这是设计而非 bug。",
-      "note": ""
+      "tags": [],
+      "note": "Fork 来的 PR 默认拿不到 secrets，这是设计而非 bug。"
     },
     {
       "id": "jenkins-build-failed",
@@ -5208,7 +5170,7 @@
         "清理工作区：Clean before build",
         "核对凭据 ID 与流水线里一致"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5234,7 +5196,7 @@
         "核对 include 路径",
         "至少定义一个非 . 开头的 job"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5259,8 +5221,8 @@
         "核对连接串的 host:port/service_name",
         "检查 tnsnames.ora"
       ],
-      "tags": "ORA-12541 是「没人听」，ORA-12514 是「有人听但没这个服务」。",
-      "note": ""
+      "tags": [],
+      "note": "ORA-12541 是「没人听」，ORA-12514 是「有人听但没这个服务」。"
     },
     {
       "id": "oracle-ora-12514",
@@ -5282,7 +5244,7 @@
         "确认实例启动：sqlplus / as sysdba 然后 select status from v$instance",
         "核对连接串用 SID 还是 SERVICE_NAME"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5306,8 +5268,8 @@
         "申请权限：grant select on 表 to 用户",
         "注意 Oracle 标识符默认大写"
       ],
-      "tags": "Oracle 最经典的坑：建表时加了双引号小写，查询时不加引号就找不到。",
-      "note": ""
+      "tags": [],
+      "note": "Oracle 最经典的坑：建表时加了双引号小写，查询时不加引号就找不到。"
     },
     {
       "id": "oracle-ora-01017",
@@ -5331,7 +5293,7 @@
         "重置密码：alter user 用户名 identified by 新密码",
         "确认连接的 service_name"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5353,7 +5315,7 @@
         "查锁定状态：select username, account_status from dba_users",
         "调整 PROFILE 的 FAILED_LOGIN_ATTEMPTS"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5379,8 +5341,8 @@
         "确认数据库存在且有权限",
         "看错误状态码：18456 后面 State 值能定位具体原因"
       ],
-      "tags": "State 38 表示密码错，State 40 表示数据库不存在——这个细节很有用。",
-      "note": ""
+      "tags": [],
+      "note": "State 38 表示密码错，State 40 表示数据库不存在——这个细节很有用。"
     },
     {
       "id": "mssql-connection-timeout",
@@ -5405,8 +5367,8 @@
         "验证端口：telnet 主机 1433",
         "命名实例要开 SQL Server Browser 服务"
       ],
-      "tags": "默认 TCP/IP 是禁用的，这是新装 SQL Server 最常见的连不上原因。",
-      "note": ""
+      "tags": [],
+      "note": "默认 TCP/IP 是禁用的，这是新装 SQL Server 最常见的连不上原因。"
     },
     {
       "id": "mssql-deadlock",
@@ -5431,7 +5393,7 @@
         "补索引减少扫描",
         "捕获 1205 错误后重试"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5458,8 +5420,8 @@
         "磁盘满先清理或调 watermark",
         "必要时 GET _cluster/reroute 手动分配"
       ],
-      "tags": "red 是主分片缺失（会丢数据），yellow 只是副本没分配（数据安全）。",
-      "note": ""
+      "tags": [],
+      "note": "red 是主分片缺失（会丢数据），yellow 只是副本没分配（数据安全）。"
     },
     {
       "id": "es-disk-watermark",
@@ -5482,8 +5444,8 @@
         "临时解除只读：PUT /索引/_settings {\"index.blocks.read_only_allow_delete\": null}",
         "调整阈值：cluster.routing.allocation.disk.watermark.*"
       ],
-      "tags": "解除只读前必须先腾出空间，否则很快又会触发。",
-      "note": ""
+      "tags": [],
+      "note": "解除只读前必须先腾出空间，否则很快又会触发。"
     },
     {
       "id": "es-mapping-conflict",
@@ -5508,8 +5470,8 @@
         "写入前统一数据格式",
         "生产环境建议关闭 dynamic mapping"
       ],
-      "tags": "ES 的 mapping 不可变，类型冲突只能 reindex，这是设计约束。",
-      "note": ""
+      "tags": [],
+      "note": "ES 的 mapping 不可变，类型冲突只能 reindex，这是设计约束。"
     },
     {
       "id": "clickhouse-memory-limit",
@@ -5534,8 +5496,8 @@
         "优化查询：先过滤再聚合",
         "大查询考虑物化视图预聚合"
       ],
-      "tags": "ClickHouse 报错都带 Code: N，搜这个码比搜文字快。",
-      "note": ""
+      "tags": [],
+      "note": "ClickHouse 报错都带 Code: N，搜这个码比搜文字快。"
     },
     {
       "id": "clickhouse-too-many-parts",
@@ -5558,8 +5520,8 @@
         "调整 parts_to_throw_insert 阈值（治标）",
         "观察 system.parts 数量"
       ],
-      "tags": "ClickHouse 最忌一行一行 insert，必须批量。",
-      "note": ""
+      "tags": [],
+      "note": "ClickHouse 最忌一行一行 insert，必须批量。"
     },
     {
       "id": "cassandra-unavailable",
@@ -5584,7 +5546,7 @@
         "检查副本数和节点数是否匹配",
         "等集群稳定再重试"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5609,8 +5571,8 @@
         "查现有授权：SELECT user,host FROM mysql.user",
         "删匿名用户：DROP USER ''@'localhost'"
       ],
-      "tags": "MariaDB 的 host 匹配很严格，'u'@'localhost' 和 'u'@'%' 是两个不同账户。",
-      "note": ""
+      "tags": [],
+      "note": "MariaDB 的 host 匹配很严格，'u'@'localhost' 和 'u'@'%' 是两个不同账户。"
     },
     {
       "id": "neo4j-auth-failed",
@@ -5632,7 +5594,7 @@
         "命令行改：cypher-shell -u neo4j -p 旧密码 然后 CALL dbms.security.changePassword('新密码')",
         "检查 dbms.security.auth_enabled 配置"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5659,8 +5621,8 @@
         "授权 vhost：rabbitmqctl set_permissions -p / 用户 \".*\" \".*\" \".*\"",
         "别用 guest 远程连，新建专用用户"
       ],
-      "tags": "guest/guest 默认只能本机登录，远程连接必须建新用户。",
-      "note": ""
+      "tags": [],
+      "note": "guest/guest 默认只能本机登录，远程连接必须建新用户。"
     },
     {
       "id": "rabbitmq-queue-full",
@@ -5685,8 +5647,8 @@
         "给队列设 x-max-length 和 TTL",
         "调整 vm_memory_high_watermark"
       ],
-      "tags": "积压是消费能力问题，加消费者通常比调水位更治本。",
-      "note": ""
+      "tags": [],
+      "note": "积压是消费能力问题，加消费者通常比调水位更治本。"
     },
     {
       "id": "rocketmq-nameserver",
@@ -5711,8 +5673,8 @@
         "创建 topic：sh mqadmin updateTopic",
         "查 broker 注册：sh mqadmin clusterList"
       ],
-      "tags": "No route info of this topic 基本都是 topic 没建或 broker 没注册。",
-      "note": ""
+      "tags": [],
+      "note": "No route info of this topic 基本都是 topic 没建或 broker 没注册。"
     },
     {
       "id": "apache-address-in-use",
@@ -5737,7 +5699,7 @@
         "改 Listen 端口",
         "检查是否重复启动 httpd"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5763,8 +5725,8 @@
         "确认 DirectoryIndex 指向存在的文件",
         "看错误日志：tail /var/log/httpd/error_log"
       ],
-      "tags": "Linux 上 403 十有八九是文件系统权限或 SELinux，不是 Apache 配置。",
-      "note": ""
+      "tags": [],
+      "note": "Linux 上 403 十有八九是文件系统权限或 SELinux，不是 Apache 配置。"
     },
     {
       "id": "tomcat-port-conflict",
@@ -5789,8 +5751,8 @@
         "看 catalina.out 里第一条异常",
         "确认 JAVA_HOME 正确"
       ],
-      "tags": "LifecycleException 本身只是表象，真正原因在它下面的 caused by。",
-      "note": ""
+      "tags": [],
+      "note": "LifecycleException 本身只是表象，真正原因在它下面的 caused by。"
     },
     {
       "id": "iis-500-19",
@@ -5815,8 +5777,8 @@
         "给应用池身份加目录读权限",
         "确认应用池的 .NET CLR 版本"
       ],
-      "tags": "部署 .NET Core 到 IIS 报 500.19，先查 Hosting Bundle 装没装。",
-      "note": ""
+      "tags": [],
+      "note": "部署 .NET Core 到 IIS 报 500.19，先查 Hosting Bundle 装没装。"
     },
     {
       "id": "iis-app-pool-crash",
@@ -5841,7 +5803,7 @@
         "应用池 → 高级设置 → 关闭 Rapid-Fail Protection（先修根因）",
         "检查 identity 和 loadUserProfile"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5866,7 +5828,7 @@
         "检查 internal/private 可见性",
         "核对包名"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5890,8 +5852,8 @@
         "变量声明改成可空类型 T?",
         "用 requireNotNull() 带信息地校验"
       ],
-      "tags": "别用 !! 图省事，那等于把 Kotlin 的空安全优势丢掉了。",
-      "note": ""
+      "tags": [],
+      "note": "别用 !! 图省事，那等于把 Kotlin 的空安全优势丢掉了。"
     },
     {
       "id": "kotlin-gradle-plugin",
@@ -5915,7 +5877,7 @@
         "看报错里的 required version 提示",
         "清理重建：./gradlew clean build"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5941,7 +5903,7 @@
         "用 @available 做版本判断",
         "检查 access level（internal/private）"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5967,7 +5929,7 @@
         "放宽版本约束",
         "删 Package.resolved 重解析"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -5993,8 +5955,8 @@
         "注意 _2.13 这类后缀要和 Scala 版本一致",
         "清缓存：sbt clean update"
       ],
-      "tags": "Scala 库名带 _2.12/_2.13/_3 后缀，版本对不上就 resolve 失败。",
-      "note": ""
+      "tags": [],
+      "note": "Scala 库名带 _2.12/_2.13/_3 后缀，版本对不上就 resolve 失败。"
     },
     {
       "id": "scala-type-mismatch",
@@ -6019,7 +5981,7 @@
         "显式标注类型",
         "必要时 .asInstanceOf（最后手段）"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6044,8 +6006,8 @@
         "加路径：use lib '/path/to/lib';",
         "确认用的是同一个 perl：which perl"
       ],
-      "tags": "常见坑：系统有一个 perl，/usr/local 又装了一个，模块装到了另一个。",
-      "note": ""
+      "tags": [],
+      "note": "常见坑：系统有一个 perl，/usr/local 又装了一个，模块装到了另一个。"
     },
     {
       "id": "perl-bareword",
@@ -6069,7 +6031,7 @@
         "字符串加引号",
         "核对变量名拼写"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6094,7 +6056,7 @@
         "访问前判空：if t and t.field then",
         "确认 require 的模块 return 了表"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6119,7 +6081,7 @@
         "用 luarocks 装依赖",
         "确认文件名与 require 的模块名对应"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6144,7 +6106,7 @@
         "查已装：installed.packages()",
         "Bioconductor 包用 BiocManager::install"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6170,8 +6132,8 @@
         "核对列名拼写（R 区分大小写）",
         "加判断：if (i <= length(x))"
       ],
-      "tags": "R 的索引从 1 开始，这点和多数语言不同。",
-      "note": ""
+      "tags": [],
+      "note": "R 的索引从 1 开始，这点和多数语言不同。"
     },
     {
       "id": "elixir-undefined-function",
@@ -6196,8 +6158,8 @@
         "私有函数改成 def 或用公开接口",
         "mix deps.get 更新依赖"
       ],
-      "tags": "Elixir 里 foo/1 和 foo/2 是完全不同的函数，报错会写清 arity。",
-      "note": ""
+      "tags": [],
+      "note": "Elixir 里 foo/1 和 foo/2 是完全不同的函数，报错会写清 arity。"
     },
     {
       "id": "elixir-mix-deps",
@@ -6223,7 +6185,7 @@
         "核对 mix.exs 版本约束",
         "装系统构建依赖"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6249,7 +6211,7 @@
         "stack clean && stack build",
         "看 cabal 建议的版本组合"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6275,8 +6237,8 @@
         "缺实例就 deriving (Show, Eq)",
         "用 :t 在 GHCi 里查类型"
       ],
-      "tags": "Haskell 报错信息很长，重点看 Couldn't match expected type 那两行。",
-      "note": ""
+      "tags": [],
+      "note": "Haskell 报错信息很长，重点看 Couldn't match expected type 那两行。"
     },
     {
       "id": "zig-compile-error",
@@ -6301,8 +6263,8 @@
         "补 @import",
         "参考对应版本的官方文档"
       ],
-      "tags": "Zig 还在 0.x，不同版本语法会变，遇到怪错误先确认版本。",
-      "note": ""
+      "tags": [],
+      "note": "Zig 还在 0.x，不同版本语法会变，遇到怪错误先确认版本。"
     },
     {
       "id": "spring-bean-creation",
@@ -6327,8 +6289,8 @@
         "多实现用 @Primary 或 @Qualifier 指定",
         "用 @Lazy 打断循环依赖"
       ],
-      "tags": "Spring 的堆栈很长，直接跳到 Caused by 的最后一段。",
-      "note": ""
+      "tags": [],
+      "note": "Spring 的堆栈很长，直接跳到 Caused by 的最后一段。"
     },
     {
       "id": "spring-datasource-config",
@@ -6353,7 +6315,7 @@
         "确认激活的 profile",
         "检查 YAML 缩进"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6376,7 +6338,7 @@
         "换端口：server.port=8081 或 --server.port=8081",
         "IDE 里停掉旧的运行实例"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6400,7 +6362,7 @@
         "多环境确认 RAILS_ENV",
         "实在卡住看状态：rails db:migrate:status"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6426,7 +6388,7 @@
         "确认 Ruby 版本：ruby -v 和 .ruby-version",
         "必要时 bundle update 某 gem"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6449,8 +6411,8 @@
         "确认 .env 存在：cp .env.example .env",
         "清配置缓存：php artisan config:clear"
       ],
-      "tags": "克隆项目后忘记 cp .env.example .env 是最常见原因。",
-      "note": ""
+      "tags": [],
+      "note": "克隆项目后忘记 cp .env.example .env 是最常见原因。"
     },
     {
       "id": "laravel-permission-denied",
@@ -6472,7 +6434,7 @@
         "改属主：chown -R www-data:www-data storage bootstrap/cache",
         "清缓存：php artisan cache:clear && php artisan view:clear"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6497,7 +6459,7 @@
         "静态文件用 express.static",
         "打印已注册路由排查"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6523,7 +6485,7 @@
         "模板用 kebab-case，注册用 PascalCase",
         "全局组件 app.component('名', 组件)"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6548,7 +6510,7 @@
         "setup 里确保 return 出来",
         "用 v-if 保护未就绪的数据"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6573,7 +6535,7 @@
         "检查构造器注入的类型",
         "确认模块导入顺序"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6600,7 +6562,7 @@
         "用 ngModel 要导 FormsModule",
         "用 *ngIf/*ngFor 要导 CommonModule"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6626,8 +6588,8 @@
         "修正 HTML 嵌套结构",
         "必要时用 suppressHydrationWarning（谨慎）"
       ],
-      "tags": "水合错误在开发环境是警告，生产环境可能导致整页重渲染。",
-      "note": ""
+      "tags": [],
+      "note": "水合错误在开发环境是警告，生产环境可能导致整页重渲染。"
     },
     {
       "id": "next-module-not-found",
@@ -6652,8 +6614,8 @@
         "需要 hooks 的文件加 'use client'",
         "服务端专属代码用 server-only 标记"
       ],
-      "tags": "Next 13+ 的 Server/Client Component 边界是最容易踩的坑。",
-      "note": ""
+      "tags": [],
+      "note": "Next 13+ 的 Server/Client Component 边界是最容易踩的坑。"
     },
     {
       "id": "junit-test-failed",
@@ -6679,7 +6641,7 @@
         "给测试加 @BeforeEach 重置状态",
         "单独跑该用例：mvn test -Dtest=类名#方法名"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6705,7 +6667,7 @@
         "检查 mock 设置",
         "用 --filter 单跑：phpunit --filter 方法名"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6731,7 +6693,7 @@
         "单跑：rspec 文件:行号",
         "检查 before 钩子的数据状态"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6757,8 +6719,8 @@
         "加 cy.intercept 等待接口",
         "必要时 cy.wait 或调 timeout（治标）"
       ],
-      "tags": "Cypress 报错时截图和时间旅行是最好的排查工具。",
-      "note": ""
+      "tags": [],
+      "note": "Cypress 报错时截图和时间旅行是最好的排查工具。"
     },
     {
       "id": "playwright-timeout",
@@ -6783,7 +6745,7 @@
         "用 expect(locator).toBeVisible() 显式等待",
         "排查是否匹配到多个元素"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6808,8 +6770,8 @@
         "核对选择器",
         "必要时滚动到元素再操作"
       ],
-      "tags": "别把元素存起来反复用，每次操作前重新 findElement 更稳。",
-      "note": ""
+      "tags": [],
+      "note": "别把元素存起来反复用，每次操作前重新 findElement 更稳。"
     },
     {
       "id": "prettier-config-error",
@@ -6833,7 +6795,7 @@
         "用 eslint-config-prettier 关闭冲突规则",
         "prettier --check 看哪些文件不合规"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6856,8 +6818,8 @@
         "配 pre-commit 自动格式化",
         "与团队统一 line-length"
       ],
-      "tags": "Black 的哲学是不给配置选项，接受它的风格最省事。",
-      "note": ""
+      "tags": [],
+      "note": "Black 的哲学是不给配置选项，接受它的风格最省事。"
     },
     {
       "id": "ruff-lint-error",
@@ -6881,8 +6843,8 @@
         "在 pyproject.toml 配 ignore",
         "理解规则码含义再决定是否忽略"
       ],
-      "tags": "Ruff 快到可以每次保存都跑，建议配 pre-commit。",
-      "note": ""
+      "tags": [],
+      "note": "Ruff 快到可以每次保存都跑，建议配 pre-commit。"
     },
     {
       "id": "flake8-error",
@@ -6908,8 +6870,8 @@
         "长行用 black 或配 max-line-length",
         "在 setup.cfg/.flake8 里配置忽略项"
       ],
-      "tags": "F 开头是潜在 bug，E/W 是风格，优先修 F 类。",
-      "note": ""
+      "tags": [],
+      "note": "F 开头是潜在 bug，E/W 是风格，优先修 F 类。"
     },
     {
       "id": "mypy-type-error",
@@ -6934,7 +6896,7 @@
         "必要时 # type: ignore（加注释说明原因）",
         "从严格度较低的配置起步"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -6958,8 +6920,8 @@
         "先装版本：nvm install 20 然后 nvm use 20",
         "重开终端"
       ],
-      "tags": "Windows 的 nvm-windows 和 Linux 的 nvm 是两套东西，命令不通用。",
-      "note": ""
+      "tags": [],
+      "note": "Windows 的 nvm-windows 和 Linux 的 nvm 是两套东西，命令不通用。"
     },
     {
       "id": "pyenv-version-not-installed",
@@ -6983,7 +6945,7 @@
         "初始化：eval \"$(pyenv init -)\" 写进 shell 配置",
         "缺依赖时先装 build-essential/libssl-dev 等"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -7007,7 +6969,7 @@
         "初始化：eval \"$(rbenv init -)\"",
         "缺依赖装 openssl/readline 开发包"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -7032,8 +6994,8 @@
         "修上下文：restorecon -Rv 目录",
         "非标准端口要注册：semanage port -a -t http_port_t -p tcp 8081"
       ],
-      "tags": "别用 setenforce 0 关掉 SELinux 了事，应该修上下文或加策略。",
-      "note": ""
+      "tags": [],
+      "note": "别用 setenforce 0 关掉 SELinux 了事，应该修上下文或加策略。"
     },
     {
       "id": "iptables-blocked",
@@ -7059,8 +7021,8 @@
         "注意云厂商安全组是另一层",
         "用 telnet 测端口确认"
       ],
-      "tags": "云上排查要记住有两层：系统防火墙 + 云安全组。",
-      "note": ""
+      "tags": [],
+      "note": "云上排查要记住有两层：系统防火墙 + 云安全组。"
     },
     {
       "id": "nfs-mount-failed",
@@ -7087,8 +7049,8 @@
         "确认 rpcbind/nfs-server 启动",
         "Stale 时重新挂载：umount -f 然后 mount"
       ],
-      "tags": "Stale file handle 是服务端重启导致，只能重挂。",
-      "note": ""
+      "tags": [],
+      "note": "Stale file handle 是服务端重启导致，只能重挂。"
     },
     {
       "id": "smtp-auth-failed",
@@ -7113,8 +7075,8 @@
         "用 587(STARTTLS) 或 465(SSL) 端口",
         "确认账号已开启 SMTP 服务"
       ],
-      "tags": "Gmail 现在必须用 App Password，直接用账号密码会 535。",
-      "note": ""
+      "tags": [],
+      "note": "Gmail 现在必须用 App Password，直接用账号密码会 535。"
     },
     {
       "id": "smtp-relay-denied",
@@ -7139,7 +7101,7 @@
         "自建邮件服务器要配 SPF/DKIM/DMARC",
         "云服务器默认禁 25 端口，用 587"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -7165,8 +7127,8 @@
         "校准服务器时间：ntpdate/chronyd",
         "配置自动续期定时任务"
       ],
-      "tags": "Let's Encrypt 证书 90 天有效，必须配自动续期，否则每年都会出事。",
-      "note": ""
+      "tags": [],
+      "note": "Let's Encrypt 证书 90 天有效，必须配自动续期，否则每年都会出事。"
     },
     {
       "id": "certbot-renew-failed",
@@ -7191,8 +7153,8 @@
         "用 webroot 模式而非 standalone",
         "内网机器改用 DNS-01 验证"
       ],
-      "tags": "先用 --dry-run 演练，别等真过期了才发现续不了。",
-      "note": ""
+      "tags": [],
+      "note": "先用 --dry-run 演练，别等真过期了才发现续不了。"
     },
     {
       "id": "ssh-permission-too-open",
@@ -7216,8 +7178,8 @@
         "Windows 上在属性→安全里移除继承并只保留自己",
         "确认属主是自己"
       ],
-      "tags": "Windows 上 Git Bash 的 chmod 可能无效，要在文件属性里改 ACL。",
-      "note": ""
+      "tags": [],
+      "note": "Windows 上 Git Bash 的 chmod 可能无效，要在文件属性里改 ACL。"
     },
     {
       "id": "cuda-out-of-memory",
@@ -7243,8 +7205,8 @@
         "混合精度：torch.cuda.amp",
         "查占用：nvidia-smi"
       ],
-      "tags": "empty_cache() 只释放缓存，不会释放还在引用的张量——先确认没有变量没释放。",
-      "note": ""
+      "tags": [],
+      "note": "empty_cache() 只释放缓存，不会释放还在引用的张量——先确认没有变量没释放。"
     },
     {
       "id": "cuda-driver-mismatch",
@@ -7268,8 +7230,8 @@
         "装对应 CUDA 版本的 PyTorch（官网命令）",
         "Docker 要加 --gpus all"
       ],
-      "tags": "nvidia-smi 右上角显示的 CUDA Version 是驱动支持的最高版本，不是已装的。",
-      "note": ""
+      "tags": [],
+      "note": "nvidia-smi 右上角显示的 CUDA Version 是驱动支持的最高版本，不是已装的。"
     },
     {
       "id": "jupyter-kernel-died",
@@ -7294,8 +7256,8 @@
         "看是否有 C 扩展崩溃（dmesg 找 segfault）",
         "重启内核或换 kernel 版本"
       ],
-      "tags": "内核「无声消失」基本都是 OOM，先查内存。",
-      "note": ""
+      "tags": [],
+      "note": "内核「无声消失」基本都是 OOM，先查内存。"
     },
     {
       "id": "numpy-shape-mismatch",
@@ -7320,8 +7282,8 @@
         "reshape 用 -1 让 numpy 推断",
         "必要时 np.expand_dims 补维度"
       ],
-      "tags": "报错里会写清两个形状，对照广播规则看哪个维度对不上。",
-      "note": ""
+      "tags": [],
+      "note": "报错里会写清两个形状，对照广播规则看哪个维度对不上。"
     },
     {
       "id": "pandas-key-error-col",
@@ -7346,8 +7308,8 @@
         "按位置取用 iloc，按名取用 loc",
         "读文件时确认 header 参数"
       ],
-      "tags": "用 df.columns.tolist() 打印真实列名，比猜快得多。",
-      "note": ""
+      "tags": [],
+      "note": "用 df.columns.tolist() 打印真实列名，比猜快得多。"
     },
     {
       "id": "git-lfs-missing",
@@ -7372,8 +7334,8 @@
         "确认是大文件：git lfs ls-files",
         "配额超了要在 GitHub 买流量或清理历史"
       ],
-      "tags": "没装 LFS 时 clone 下来只有几百字节的指针文件，打不开。",
-      "note": ""
+      "tags": [],
+      "note": "没装 LFS 时 clone 下来只有几百字节的指针文件，打不开。"
     },
     {
       "id": "git-filename-too-long",
@@ -7394,8 +7356,8 @@
         "同时要在 Windows 组策略里启用长路径支持",
         "换更短的克隆路径"
       ],
-      "tags": "Windows 上克隆大型前端项目经常撞上这个限制，建议直接开启。",
-      "note": ""
+      "tags": [],
+      "note": "Windows 上克隆大型前端项目经常撞上这个限制，建议直接开启。"
     },
     {
       "id": "bom-encoding-error",
@@ -7419,8 +7381,8 @@
         "命令行去 BOM：sed -i '1s/^\\xEF\\xBB\\xBF//' 文件",
         "配置编辑器的默认编码"
       ],
-      "tags": "JSON 带 BOM 是最隐蔽的问题之一——肉眼看不出，解析必报错。",
-      "note": ""
+      "tags": [],
+      "note": "JSON 带 BOM 是最隐蔽的问题之一——肉眼看不出，解析必报错。"
     },
     {
       "id": "vim-swap-exists",
@@ -7443,8 +7405,8 @@
         "只读打开：vim -R 文件",
         "批量清理：find . -name '*.swp' -delete"
       ],
-      "tags": "按 A 可以强制忽略，但先确认真的没有另一个会话在编辑。",
-      "note": ""
+      "tags": [],
+      "note": "按 A 可以强制忽略，但先确认真的没有另一个会话在编辑。"
     },
     {
       "id": "less-binary-file",
@@ -7467,7 +7429,7 @@
         "转编码：iconv -f gbk -t utf-8",
         "清理控制字符：cat -v"
       ],
-      "tags": "",
+      "tags": [],
       "note": ""
     },
     {
@@ -7492,8 +7454,8 @@
         "attach：tmux attach -t 名字",
         "持久化用 tmux-resurrect 插件"
       ],
-      "tags": "tmux 会话不跨重启，重要工作要用插件持久化。",
-      "note": ""
+      "tags": [],
+      "note": "tmux 会话不跨重启，重要工作要用插件持久化。"
     },
     {
       "id": "general-permission-denied",
@@ -7522,8 +7484,8 @@
         "需要提权时用 sudo（谨慎）",
         "查权限：ls -l 文件；查属主：stat 文件"
       ],
-      "tags": "提示：如果报错里带了具体工具名（如 npm/pip/docker），按那个工具的方式处理更准确。",
-      "note": ""
+      "tags": [],
+      "note": "提示：如果报错里带了具体工具名（如 npm/pip/docker），按那个工具的方式处理更准确。"
     },
     {
       "id": "general-connection-refused",
@@ -7550,8 +7512,8 @@
         "核对 host 和 port 配置",
         "检查服务监听地址（0.0.0.0 vs 127.0.0.1）"
       ],
-      "tags": "带工具名时（如 redis/mysql/nginx）优先按对应词条处理，那是更精确的原因。",
-      "note": ""
+      "tags": [],
+      "note": "带工具名时（如 redis/mysql/nginx）优先按对应词条处理，那是更精确的原因。"
     },
     {
       "id": "java-home-not-set",

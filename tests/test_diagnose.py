@@ -1,9 +1,15 @@
 """诊断引擎测试：文本抽取准确性 + 检查函数不崩 + CLI 分派。"""
 
 import io
+import json
 import socket
+import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
 
 from errsplain import diagnose as dg
 from errsplain.cli import main
@@ -142,6 +148,31 @@ class TestChecksDoNotCrash(unittest.TestCase):
     def test_diagnose_empty_returns_empty(self):
         self.assertEqual(dg.diagnose("hello world"), [])
 
+    def test_dns_success(self):
+        infos = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.0.2.1", 0))]
+        with patch.object(dg.socket, "getaddrinfo", return_value=infos):
+            finding = dg.check_dns("example.test")
+        self.assertTrue(finding.ok)
+        self.assertIn("192.0.2.1", finding.value)
+
+    def test_dns_timeout_returns_promptly(self):
+        release = threading.Event()
+
+        def slow_resolve(host, port):
+            release.wait(5)
+            return []
+
+        try:
+            with patch.object(dg.socket, "getaddrinfo", side_effect=slow_resolve), \
+                    patch.object(dg, "_TIMEOUT", 0.02):
+                started = time.perf_counter()
+                finding = dg.check_dns("slow.example")
+                elapsed = time.perf_counter() - started
+        finally:
+            release.set()
+        self.assertLess(elapsed, 1.0)
+        self.assertIn("超时", finding.value)
+
     def test_diagnose_never_raises(self):
         for text in ["", "??", "a" * 5000, "No module named", ":99999", "C:\\"]:
             with self.subTest(text=text[:20]):
@@ -195,6 +226,20 @@ class TestDiagnoseCli(unittest.TestCase):
             rc = main(["diagnose", "hello world"])
         self.assertEqual(rc, 1)
 
+    def test_diagnose_file_strips_utf8_bom(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "error.log"
+            path.write_bytes(
+                b"\xef\xbb\xbfModuleNotFoundError: No module named 'demo'"
+            )
+            buf = io.StringIO()
+            with patch("errsplain.diagcmd.diagnose", return_value=[]) as mocked:
+                with redirect_stdout(buf), redirect_stderr(buf):
+                    rc = main(["diagnose", "--file", str(path)])
+            self.assertEqual(rc, 1)
+            text = mocked.call_args.args[0]
+            self.assertTrue(text.startswith("ModuleNotFoundError"))
+
     def test_diagnose_help(self):
         buf = io.StringIO()
         with redirect_stdout(buf), redirect_stderr(buf), self.assertRaises(SystemExit) as cm:
@@ -209,6 +254,32 @@ class TestDiagnoseCli(unittest.TestCase):
         out = buf.getvalue()
         self.assertEqual(rc, 0)
         self.assertIn("现场诊断", out)
+
+    def test_json_remains_list_without_diagnose(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["--json", "ModuleNotFoundError: No module named 'flask'"])
+        self.assertEqual(rc, 0)
+        self.assertIsInstance(json.loads(buf.getvalue()), list)
+
+    def test_json_includes_structured_diagnosis(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main([
+                "--json",
+                "--diagnose",
+                "ModuleNotFoundError: No module named 'definitely_not_real_xyz'",
+            ])
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertIsInstance(payload["matches"], list)
+        self.assertTrue(payload["matches"])
+        self.assertTrue(
+            any(
+                finding["title"] == "模块 definitely_not_real_xyz"
+                for finding in payload["diagnosis"]
+            )
+        )
 
 
 if __name__ == "__main__":

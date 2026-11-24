@@ -1,6 +1,7 @@
 """剪贴板翻译模块测试：判断逻辑、翻译输出、命令分派。"""
 
 import io
+import os
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
@@ -60,10 +61,26 @@ class TestClipCommands(unittest.TestCase):
         self.assertEqual(cm.exception.code, 0)
         self.assertIn("常驻", buf.getvalue())
 
-    @unittest.skipUnless(clipboard.IS_WINDOWS, "剪贴板测试仅 Windows")
+    def test_watch_rejects_invalid_intervals(self):
+        for value in ("nan", "inf", "-inf", "0.1"):
+            with self.subTest(value=value):
+                buf = io.StringIO()
+                with redirect_stderr(buf):
+                    rc = main(["watch", f"--interval={value}"])
+                self.assertEqual(rc, 2)
+                self.assertIn("有限数字", buf.getvalue())
+
+    @unittest.skipUnless(
+        clipboard.IS_WINDOWS and os.environ.get("ERRSPLAIN_TEST_REAL_CLIPBOARD") == "1",
+        "真实剪贴板集成测试需 Windows 且显式设置 ERRSPLAIN_TEST_REAL_CLIPBOARD=1",
+    )
     def test_clipboard_roundtrip(self):
-        clipboard.set_text("hello clipboard test")
-        self.assertEqual(clipboard.get_text(), "hello clipboard test")
+        original = clipboard.get_text()
+        try:
+            clipboard.set_text("hello clipboard test")
+            self.assertEqual(clipboard.get_text(), "hello clipboard test")
+        finally:
+            clipboard.set_text(original)
 
 
 if __name__ == "__main__":

@@ -61,13 +61,35 @@ def validate_entry(raw: dict[str, Any]) -> list[str]:
     for key in ("id", "title", "patterns", "meaning"):
         if key not in raw:
             errors.append(f"缺少必填字段: {key}")
-    if "id" in raw and not _ID_RE.match(str(raw["id"])):
+
+    if "id" in raw and (
+        not isinstance(raw["id"], str) or not _ID_RE.match(raw["id"])
+    ):
         errors.append(f"id 不合法（应小写字母/数字/连字符）: {raw['id']!r}")
-    if "patterns" in raw:
-        pats = raw["patterns"]
-        if not isinstance(pats, list) or not pats:
+    for key in ("title", "meaning"):
+        if key in raw and (
+            not isinstance(raw[key], str) or not raw[key].strip()
+        ):
+            errors.append(f"{key} 必须是非空字符串")
+    if "category" in raw and (
+        not isinstance(raw["category"], str) or not raw["category"].strip()
+    ):
+        errors.append("category 必须是非空字符串")
+    if "note" in raw and not isinstance(raw["note"], str):
+        errors.append("note 必须是字符串")
+
+    for key in ("patterns", "causes", "fixes", "tags"):
+        if key not in raw:
+            continue
+        items = raw[key]
+        if not isinstance(items, list):
+            errors.append(f"{key} 必须是数组")
+            continue
+        if key == "patterns" and not items:
             errors.append("patterns 必须是非空数组")
-        elif not all(isinstance(p, str) and p.strip() for p in pats):
+        if not all(isinstance(item, str) for item in items):
+            errors.append(f"{key} 的元素必须是字符串")
+        elif key == "patterns" and not all(item.strip() for item in items):
             errors.append("patterns 中不能有空字符串")
     return errors
 

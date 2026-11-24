@@ -42,10 +42,33 @@ class TestHookInstall(unittest.TestCase):
         self.assertIn("interactive", hooks.SCRIPTS["zsh"])
 
     def test_all_shells_supported(self):
-        for shell in ("bash", "zsh", "powershell"):
+        for shell in ("bash", "zsh"):
             self.assertIn(hooks.BEGIN, hooks.SCRIPTS[shell])
             self.assertIn("errsplain --hook", hooks.SCRIPTS[shell])
+            self.assertIn("_ERRSPLAIN_LAST", hooks.SCRIPTS[shell])
+        # PowerShell 不改 prompt，只保留 cuowu 一个函数
+        script = hooks.SCRIPTS["powershell"]
+        self.assertIn(hooks.BEGIN, script)
+        self.assertIn("errsplain cuowu", script)
+        self.assertNotIn("function global:prompt", script)
 
+    def test_cuowu_available_in_all_shells(self):
+        """失败命令的报错必须能被 cuowu 打开为交互导航。"""
+        for shell in ("bash", "zsh"):
+            script = hooks.SCRIPTS[shell]
+            with self.subTest(shell=shell):
+                self.assertIn("cuowu", script)
+                self.assertIn("上一条命令没有可用的报错", script)
+                self.assertIn("--interactive", script)
+                self.assertIn("--file", script)
+        script = hooks.SCRIPTS["powershell"]
+        self.assertIn("cuowu", script)
+        self.assertIn("errsplain cuowu", script)
+
+    def test_cuowu_does_not_override_existing_command(self):
+        self.assertIn("command -v cuowu", hooks.SCRIPTS["bash"])
+        self.assertIn("command -v cuowu", hooks.SCRIPTS["zsh"])
+        self.assertIn("Get-Command cuowu", hooks.SCRIPTS["powershell"])
 
 class TestHookCli(unittest.TestCase):
     def test_hook_subcommand_status(self):

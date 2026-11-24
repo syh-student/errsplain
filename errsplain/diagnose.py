@@ -17,6 +17,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -355,18 +356,37 @@ def check_disk(path: str | None = None) -> Finding:
 
 
 def check_dns(host: str) -> Finding:
-    try:
-        infos = socket.getaddrinfo(host, None)
-        ips = sorted({i[4][0] for i in infos})[:3]
-        return Finding(f"域名 {host}", f"✅ 解析为 {', '.join(ips)}", ok=True)
-    except socket.gaierror as exc:
+    """解析域名；系统 DNS 调用可能阻塞，用 daemon 线程落实超时上限。"""
+    result: dict[str, object] = {}
+
+    def resolve() -> None:
+        try:
+            result["infos"] = socket.getaddrinfo(host, None)
+        except Exception as exc:  # 诊断线程必须把错误带回主线程
+            result["error"] = exc
+
+    worker = threading.Thread(target=resolve, name="errsplain-dns", daemon=True)
+    worker.start()
+    worker.join(_TIMEOUT)
+    if worker.is_alive():
+        return Finding(f"域名 {host}", f"无法检测：DNS 查询超时（超过 {_TIMEOUT:g} 秒）")
+
+    error = result.get("error")
+    if isinstance(error, socket.gaierror):
         return Finding(
-            f"域名 {host}", f"❌ 解析失败：{exc}",
+            f"域名 {host}", f"❌ 解析失败：{error}",
             "检查域名拼写、本机 DNS 配置，或用 IP 直连排除 DNS 问题",
             ok=False,
         )
-    except OSError as exc:
-        return Finding(f"域名 {host}", f"无法检测：{exc}")
+    if error is not None:
+        return Finding(f"域名 {host}", f"无法检测：{error}")
+
+    infos = result.get("infos") or []
+    ips = sorted({i[4][0] for i in infos})[:3]
+    if not ips:
+        return Finding(f"域名 {host}", "❌ 未返回可用 IP 地址", ok=False)
+    return Finding(f"域名 {host}", f"✅ 解析为 {', '.join(ips)}", ok=True)
+
 
 
 def check_certificate(host: str, port: int = 443) -> Finding:

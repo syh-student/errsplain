@@ -72,6 +72,8 @@ if IS_WINDOWS:
     _k32.GlobalLock.restype = wintypes.LPVOID
     _k32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
     _k32.GlobalUnlock.restype = wintypes.BOOL
+    _k32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+    _k32.GlobalFree.restype = wintypes.HGLOBAL
     _GMEM_MOVEABLE = 0x0002
 
     def get_text() -> str:
@@ -93,9 +95,10 @@ if IS_WINDOWS:
             _u32.CloseClipboard()
 
     def set_text(text: str) -> None:
-        """把文本写入剪贴板。"""
+        """把文本写入剪贴板；失败路径也释放已分配的全局内存。"""
         if not _u32.OpenClipboard(None):
             raise ClipboardError("无法打开剪贴板（可能被其他程序占用）")
+        handle = None
         try:
             _u32.EmptyClipboard()
             data = text.encode("utf-16-le") + b"\x00\x00"
@@ -111,7 +114,11 @@ if IS_WINDOWS:
                 _k32.GlobalUnlock(handle)
             if not _u32.SetClipboardData(_CF_UNICODETEXT, handle):
                 raise ClipboardError("写入剪贴板失败")
+            # 成功后内存所有权交给系统，不能再 GlobalFree。
+            handle = None
         finally:
+            if handle:
+                _k32.GlobalFree(handle)
             _u32.CloseClipboard()
 
 else:  # 非 Windows：给出清晰的降级，不假装能用

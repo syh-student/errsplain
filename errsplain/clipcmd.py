@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import math
 import sys
 import time
 
@@ -135,8 +136,8 @@ def handle_watch_command(args: list[str]) -> int:
     )
     opts = parser.parse_args(args)
 
-    if opts.interval < 0.2:
-        print("轮询间隔不能小于 0.2 秒。", file=sys.stderr)
+    if not math.isfinite(opts.interval) or opts.interval < 0.2:
+        print("轮询间隔必须是不少于 0.2 秒的有限数字。", file=sys.stderr)
         return 2
 
     if not clipboard.IS_WINDOWS:

@@ -40,7 +40,7 @@ def handle_diagnose_command(args: list[str]) -> int:
         from pathlib import Path
 
         try:
-            parts.append(Path(opts.file).read_text(encoding="utf-8", errors="replace"))
+            parts.append(Path(opts.file).read_text(encoding="utf-8-sig", errors="replace"))
         except OSError as exc:
             print(f"读取文件失败：{exc}", file=sys.stderr)
             return 2

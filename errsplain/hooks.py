@@ -1,7 +1,10 @@
 """自动翻译 hook：生成 / 安装 / 卸载各 shell 的配置片段。
 
-安装后，命令一旦失败（退出码非 0），shell 会把捕获到的报错喂给
-``errsplain --hook``，后者以静默精简模式输出翻译；成功命令不打扰。
+Bash/Zsh：命令失败时自动把 stderr 喂给 ``errsplain --hook``，并保留一份
+给下一句 ``cuowu`` 打开交互导航。
+
+PowerShell：不改 ``prompt``、不预先保存；用户报错后输入 ``cuowu``，
+由 ``errsplain cuowu`` 当场读取控制台画面再打开交互导航。
 
 设计要点：
 - 所有脚本块都用 BEGIN/END 标记包裹，install 幂等、uninstall 干净。
@@ -31,29 +34,47 @@ case $- in
 esac
 
 _ERRSPLAIN_BUF="$(mktemp -t errsplain.XXXXXX)"
+_ERRSPLAIN_LAST="$(mktemp -t errsplain-last.XXXXXX)"
 
 # 把 stderr 镜像一份到缓冲区，原样仍输出到终端
 exec 3>&2 2> >(tee "$_ERRSPLAIN_BUF" >&3)
+
+# 上一条失败命令的报错进入交互导航
+if ! command -v cuowu >/dev/null 2>&1; then
+  cuowu() {
+    if [ -s "$_ERRSPLAIN_LAST" ]; then
+      errsplain --interactive --file "$_ERRSPLAIN_LAST"
+    else
+      printf '上一条命令没有可用的报错。\n'
+    fi
+  }
+fi
 
 _errsplain_auto() {
   local rc=$?
   : > "$_ERRSPLAIN_BUF.tmp"
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 130 ]; then
     : > "$_ERRSPLAIN_BUF"
+    : > "$_ERRSPLAIN_LAST"
     return
   fi
-  [ "${ERRSPLAIN_HOOK:-1}" = "1" ] || { : > "$_ERRSPLAIN_BUF"; return; }
   sleep 0.1
   if [ -s "$_ERRSPLAIN_BUF" ]; then
-    errsplain --hook < "$_ERRSPLAIN_BUF"
+    # 保留给下一句 cuowu；自动翻译可用 ERRSPLAIN_HOOK=0 单独关闭
+    cp "$_ERRSPLAIN_BUF" "$_ERRSPLAIN_LAST"
+    if [ "${ERRSPLAIN_HOOK:-1}" = "1" ]; then
+      errsplain --hook < "$_ERRSPLAIN_BUF"
+    fi
     : > "$_ERRSPLAIN_BUF"
+  else
+    : > "$_ERRSPLAIN_LAST"
   fi
 }
 
 # 放在最前，确保拿到的是上一条命令的退出码
 PROMPT_COMMAND="_errsplain_auto${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 
-# 临时开关：ERRSPLAIN_HOOK=0 关闭，=1 打开
+# 临时开关：ERRSPLAIN_HOOK=0 关闭自动翻译，但 cuowu 仍可用
 # <<< errsplain hook (managed) <<<'''
 
 _ZSH_SCRIPT = r'''# >>> errsplain hook (managed) >>>
@@ -61,19 +82,35 @@ _ZSH_SCRIPT = r'''# >>> errsplain hook (managed) >>>
 [[ -o interactive ]] || return 2>/dev/null || exit 0
 
 _ERRSPLAIN_BUF="$(mktemp -t errsplain.XXXXXX)"
+_ERRSPLAIN_LAST="$(mktemp -t errsplain-last.XXXXXX)"
 exec 3>&2 2> >(tee "$_ERRSPLAIN_BUF" >&3)
+
+if ! command -v cuowu >/dev/null 2>&1; then
+  cuowu() {
+    if [ -s "$_ERRSPLAIN_LAST" ]; then
+      errsplain --interactive --file "$_ERRSPLAIN_LAST"
+    else
+      printf '上一条命令没有可用的报错。\n'
+    fi
+  }
+fi
 
 _errsplain_auto() {
   local rc=$?
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 130 ]; then
     : > "$_ERRSPLAIN_BUF"
+    : > "$_ERRSPLAIN_LAST"
     return
   fi
-  [ "${ERRSPLAIN_HOOK:-1}" = "1" ] || { : > "$_ERRSPLAIN_BUF"; return; }
   sleep 0.1
   if [ -s "$_ERRSPLAIN_BUF" ]; then
-    errsplain --hook < "$_ERRSPLAIN_BUF"
+    cp "$_ERRSPLAIN_BUF" "$_ERRSPLAIN_LAST"
+    if [ "${ERRSPLAIN_HOOK:-1}" = "1" ]; then
+      errsplain --hook < "$_ERRSPLAIN_BUF"
+    fi
     : > "$_ERRSPLAIN_BUF"
+  else
+    : > "$_ERRSPLAIN_LAST"
   fi
 }
 
@@ -85,21 +122,11 @@ autoload -Uz add-zsh-hook 2>/dev/null \
 # ------------------------------------------------------------- powershell
 
 _POWERSHELL_SCRIPT = r'''# >>> errsplain hook (managed) >>>
-# errsplain 自动翻译：命令失败时把报错翻译成人话（尽力方案，PowerShell 7 效果最佳）
-$global:ErrsplainHookEnabled = $true
-
-function global:prompt {
-    $code = $LASTEXITCODE
-    if ($global:ErrsplainHookEnabled -and $code -gt 0 -and $code -ne 130) {
-        try {
-            $err = $Error | Select-Object -First 1
-            if ($err) {
-                $text = $err.ToString()
-                if ($text -and $text.Length -le 8000) { $text | errsplain --hook }
-            }
-        } catch { }
+# PowerShell：不改 prompt、不后台保存；报错后输入 cuowu 直接读取当前终端画面。
+if (-not (Get-Command cuowu -ErrorAction SilentlyContinue)) {
+    function global:cuowu {
+        & errsplain cuowu
     }
-    "PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) "
 }
 # <<< errsplain hook (managed) <<<'''
 
@@ -179,7 +206,7 @@ def install(shell: str, *, target: Path | None = None) -> str:
         lines.append(f"原文件已备份 → {backup}")
     lines.append("重新打开终端（或执行 source 对应配置文件）后生效。")
     if shell == "powershell":
-        lines.append("提示：PowerShell 5.1 对原生命令报错捕获有限，7+ 效果最佳。")
+        lines.append("提示：命令失败后输入 cuowu 即可打开交互导航。")
     return "\n".join(lines)
 
 

@@ -72,6 +72,31 @@ class TestEntryValidation(unittest.TestCase):
         self.assertTrue(any("patterns" in e for e in errs))
         self.assertTrue(any("meaning" in e for e in errs))
 
+    def test_field_types_are_validated(self):
+        from errsplain.models import validate_entry
+
+        base = {
+            "id": "valid-id",
+            "title": "标题",
+            "patterns": ["original error"],
+            "meaning": "解释",
+        }
+        bad_values = (
+            ("tags", "不能写成字符串"),
+            ("causes", "不能写成字符串"),
+            ("fixes", "不能写成字符串"),
+            ("note", ["不能写成数组"]),
+            ("category", ""),
+        )
+        for field, value in bad_values:
+            with self.subTest(field=field):
+                raw = {**base, field: value}
+                errors = validate_entry(raw)
+                self.assertTrue(
+                    any(field in error for error in errors),
+                    f"{field} 的错误类型未被拦截：{errors}",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,12 +18,16 @@ class DatasetError(Exception):
 
 
 def _load_file(path: Path, *, required: bool) -> list[dict]:
-    if not path.exists():
-        if required:
-            raise DatasetError(f"词库文件不存在: {path}")
-        return []
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not path.exists():
+            if required:
+                raise DatasetError(f"词库文件不存在: {path}")
+            return []
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise DatasetError(f"词库文件读取失败: {path}\n  {exc}") from exc
+    try:
+        raw = json.loads(text)
     except json.JSONDecodeError as exc:
         raise DatasetError(f"词库 JSON 解析失败: {path}\n  {exc}") from exc
     if not isinstance(raw, dict) or not isinstance(raw.get("entries"), list):
@@ -34,23 +38,36 @@ def _load_file(path: Path, *, required: bool) -> list[dict]:
 def load_entries(
     *, builtin: Path | None = None, include_user: bool = True
 ) -> list[Entry]:
-    """加载内置词条 + 用户词条，去重（用户词条覆盖同 id 的内置词条）。"""
-    raw_all = _load_file(builtin or _DEFAULT_DATA, required=True)
+    """加载内置词条 + 用户词条；用户词条可覆盖同 id 的内置词条。
+
+    同一个文件内部的重复 id 是数据错误，必须在合并前报告；否则先去重再
+    校验会让重复 id 静默覆盖，CLI 与测试都看不到问题。
+    """
+    sources = [("内置词库", _load_file(builtin or _DEFAULT_DATA, required=True))]
     if include_user:
-        raw_all += _load_file(_USER_DATA, required=False)
+        sources.append(("用户词库", _load_file(_USER_DATA, required=False)))
 
     problems: list[str] = []
     by_id: dict[str, Entry] = {}
-    for i, raw in enumerate(raw_all):
-        if not isinstance(raw, dict):
-            problems.append(f"第 {i + 1} 条不是对象")
-            continue
-        errs = validate_entry(raw)
-        if errs:
-            problems.append(f"第 {i + 1} 条 ({raw.get('id', '?')}): {'; '.join(errs)}")
-            continue
-        entry = Entry.from_dict(raw)
-        by_id[entry.id] = entry
+    for source, raw_entries in sources:
+        source_ids: set[str] = set()
+        for i, raw in enumerate(raw_entries):
+            if not isinstance(raw, dict):
+                problems.append(f"{source}第 {i + 1} 条不是对象")
+                continue
+            errs = validate_entry(raw)
+            if errs:
+                problems.append(
+                    f"{source}第 {i + 1} 条 ({raw.get('id', '?')}): "
+                    + "; ".join(errs)
+                )
+                continue
+            entry = Entry.from_dict(raw)
+            if entry.id in source_ids:
+                problems.append(f"{source}第 {i + 1} 条 ({entry.id}): id 重复")
+                continue
+            source_ids.add(entry.id)
+            by_id[entry.id] = entry
 
     if problems:
         raise DatasetError("词库校验失败:\n  " + "\n  ".join(problems))

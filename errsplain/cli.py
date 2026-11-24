@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
 import sys
 from pathlib import Path
 
 from . import __version__
+from .clipboard import ClipboardError, get_text
 from .database import DatasetError, categories, load_entries
 from .layout import disp_width, truncate, wrap
 from .matcher import Match, match
@@ -24,6 +26,7 @@ class Palette:
             self.reset = "\033[0m"
             self.bold = "\033[1m"
             self.dim = "\033[2m"
+            self.reverse = "\033[7m"
             self.red = "\033[31m"
             self.green = "\033[32m"
             self.yellow = "\033[33m"
@@ -31,7 +34,7 @@ class Palette:
             self.magenta = "\033[35m"
             self.cyan = "\033[36m"
         else:
-            self.reset = self.bold = self.dim = ""
+            self.reset = self.bold = self.dim = self.reverse = ""
             self.red = self.green = self.yellow = self.blue = self.cyan = ""
             self.magenta = ""
 
@@ -136,6 +139,8 @@ def _read_query(args: argparse.Namespace) -> str:
     parts: list[str] = []
     if args.error:
         parts.append(" ".join(args.error))
+    if args.clip:
+        parts.append(get_text())
     if args.file:
         parts.append(Path(args.file).read_text(encoding="utf-8-sig", errors="replace"))
     if args.stdin:
@@ -150,21 +155,38 @@ def _positive_int(value: str) -> int:
     return n
 
 
+def _ratio(value: str) -> float:
+    """相关度阈值必须是 0～1 的有限数字，拒绝 nan / inf。"""
+    try:
+        number = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("必须是 0 到 1 之间的数字") from exc
+    if not math.isfinite(number) or not 0 <= number <= 1:
+        raise argparse.ArgumentTypeError("必须是 0 到 1 之间的有限数字")
+    return number
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="errsplain",
         description="把天书般的报错翻译成人话。纯离线，零依赖。",
         epilog="示例:\n  errsplain 'fatal: refusing to merge unrelated histories'\n"
+        "  errsplain -i 'ModuleNotFoundError: No module named flask'\n"
         "  git push 2>&1 | errsplain\n"
         "  errsplain --file build.log --category npm",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("error", nargs="*", help="要翻译的报错文本")
     parser.add_argument("--file", "-f", help="从文件读取报错")
+    parser.add_argument(
+        "--clip",
+        action="store_true",
+        help="从 Windows 剪贴板读取报错（IDE 里复制后直接用）",
+    )
     parser.add_argument("--stdin", action="store_true", help="强制从标准输入读取")
     parser.add_argument("--category", "-c", help="只搜索某个分类，如 git / npm")
     parser.add_argument("--top", "-n", type=_positive_int, default=3, help="最多显示几条结果 (默认 3)")
-    parser.add_argument("--threshold", type=float, default=0.22, help="相关度阈值 (默认 0.22)")
+    parser.add_argument("--threshold", type=_ratio, default=0.22, help="相关度阈值 0～1 (默认 0.22)")
     parser.add_argument("--no-color", action="store_true", help="禁用颜色输出")
     parser.add_argument(
         "--full",
@@ -172,6 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="显示完整内容（含全部原因与全部修法），默认精简",
     )
     parser.add_argument("--json", action="store_true", help="以 JSON 输出，方便脚本处理")
+    parser.add_argument(
+        "--interactive", "-i",
+        action="store_true",
+        help="交互式浏览：方向键选择、Enter 展开、D 诊断、Q 退出（需真实终端）",
+    )
     parser.add_argument("--list", action="store_true", help="列出所有词条")
     parser.add_argument("--stats", action="store_true", help="显示词库统计")
     parser.add_argument("--validate", action="store_true", help="校验词库并返回状态码")
@@ -206,16 +233,26 @@ def _render_hook(m: Match, p: Palette) -> str:
     return "\n".join(lines)
 
 
+def _run_diagnosis(query: str):
+    """执行诊断；增强功能失败时返回空列表，绝不影响主流程。"""
+    try:
+        from .diagnose import diagnose
+
+        return diagnose(query)
+    except Exception:
+        return []
+
+
 def _print_diagnosis(query: str, p: Palette) -> None:
     """跑现场诊断并打印。诊断失败绝不能影响主流程。"""
     try:
-        from .diagnose import diagnose, render
+        from .diagnose import render
 
-        findings = diagnose(query)
+        findings = _run_diagnosis(query)
         if findings:
             print()
             print(render(findings, palette=p))
-    except Exception:  # 诊断是增强功能，任何异常都静默跳过
+    except Exception:
         pass
 
 
@@ -241,6 +278,15 @@ def main(argv: list[str] | None = None) -> int:
         from .hooks import handle_hook_command
 
         return handle_hook_command(argv[1:])
+    if argv and argv[0] == "cuowu":
+        # PowerShell 专用短入口：当场读取终端画面，直接打开交互导航。
+        from .console_capture import capture_screen_text
+
+        text = capture_screen_text()
+        if not text:
+            print("当前终端里没有可读取的报错画面。")
+            return 1
+        argv = ["--interactive", "--", text]
     if argv and argv[0] == "clip":
         from .clipcmd import handle_clip_command
 
@@ -265,6 +311,10 @@ def main(argv: list[str] | None = None) -> int:
         and os.environ.get("NO_COLOR") is None
     )
     p = Palette(use_color)
+
+    if args.interactive and args.json:
+        print(p.paint("--interactive 不能与 --json 同时使用。", p.red), file=sys.stderr)
+        return 2
 
     try:
         entries = load_entries()
@@ -297,6 +347,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         query = _read_query(args)
+    except ClipboardError as exc:
+        print(p.paint(f"剪贴板错误：{exc}", p.red), file=sys.stderr)
+        return 2
     except OSError as exc:
         print(p.paint(f"读取报错文件失败：{exc}", p.red), file=sys.stderr)
         return 2
@@ -331,7 +384,21 @@ def main(argv: list[str] | None = None) -> int:
         results = results[:1]
 
     if args.json:
-        print(json.dumps([_to_dict(m) for m in results], ensure_ascii=False, indent=2))
+        payload = [_to_dict(m) for m in results]
+        if args.diagnose:
+            payload = {
+                "matches": payload,
+                "diagnosis": [
+                    {
+                        "title": f.title,
+                        "value": f.value,
+                        "hint": f.hint,
+                        "ok": f.ok,
+                    }
+                    for f in _run_diagnosis(query)
+                ],
+            }
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if results else 1
 
     if not results:
@@ -339,6 +406,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.diagnose:
             _print_diagnosis(query, p)
         return 1
+
+    if args.interactive:
+        from .interactive import run_interactive
+
+        return run_interactive(
+            query,
+            results,
+            p,
+            diagnosis_loader=_run_diagnosis,
+            show_diagnosis=args.diagnose,
+            expanded=args.full,
+        )
 
     if len(results) == 1:
         # 单条结果不需要「找到 1 条」这种废话，直接上正文
