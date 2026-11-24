@@ -1,0 +1,49 @@
+name: Update README IDE positioning
+
+on:
+  push:
+    paths:
+      - .github/trigger/readme-ide-positioning
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update README and pyproject
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          old = '纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库'
+          new = '**命令行 + IDE 剪贴板** · 纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库\n\n终端里用管道直读；在 VS Code / PyCharm / IDEA / Rider 等 IDE 里复制报错，也能用 `errsplain watch` / `errsplain clip` 翻译（Windows）。'
+          if '**命令行 + IDE 剪贴板**' not in text:
+              if old not in text:
+                  raise SystemExit('README anchor not found')
+              text = text.replace(old, new, 1)
+              readme.write_text(text, encoding='utf-8')
+
+          pyproject = Path('pyproject.toml')
+          meta = pyproject.read_text(encoding='utf-8')
+          old_desc = 'description = "把天书般的报错翻译成人话 —— 纯离线、零依赖的报错翻译官，还能现场诊断你的环境"'
+          new_desc = 'description = "把天书般的报错翻译成人话 —— 纯离线、零依赖的报错翻译官，支持命令行与 IDE 剪贴板，还能现场诊断你的环境"'
+          if new_desc not in meta:
+              if old_desc not in meta:
+                  raise SystemExit('pyproject anchor not found')
+              meta = meta.replace(old_desc, new_desc, 1)
+              pyproject.write_text(meta, encoding='utf-8')
+          PY
+
+          git config user.name "syh-student"
+          git config user.email "syh-student@users.noreply.github.com"
+          git add README.md pyproject.toml
+          git rm -f .github/trigger/readme-ide-positioning .github/workflows/readme-ide-positioning.yml
+          git commit -m "docs: 标注命令行与 IDE 剪贴板两种用法"
+          git push origin HEAD:main
