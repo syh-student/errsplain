@@ -3,9 +3,9 @@
 **把天书般的报错翻译成人话。**
 **不止告诉你「大概是什么问题」，还去你机器上查「现在到底是什么状态」。**
 
-**命令行 + IDE 剪贴板** · 纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库
+**命令行 + IDE 剪贴板（VS Code / Visual Studio / PyCharm / IDEA / Rider 等，Windows）** · 纯离线 · 零第三方依赖 · 中英双语 · 可扩展词库
 
-终端里用管道直读；在 VS Code / PyCharm / IDEA / Rider 等 IDE 里复制报错，也能用 `errsplain watch` / `errsplain clip` 翻译（Windows）。
+终端里用管道直读；在 VS Code、Visual Studio、PyCharm、IDEA、Rider 等 IDE 里复制报错，也能用 `errsplain watch` / `errsplain clip` 翻译（Windows）。
 
 犯错不可怕，看不懂报错才可怕。`errsplain` 让一段 `fatal: refusing to merge unrelated histories` 变成：
 
@@ -230,7 +230,7 @@ added 142 packages in 3s
 
 不想自动装、想自己贴配置？`errsplain hook show bash` 打印脚本片段，粘到你的 `.bashrc` / `.zshrc` 即可。
 
-## IDE 里的报错（VS Code / PyCharm / IDEA / Rider …）
+## IDE 里的报错（VS Code / Visual Studio / PyCharm / IDEA / Rider …）
 
 IDE 点「运行」后的报错画在它自己的控制台里，**不经过 shell**，所以上面的 hook 覆盖不到。但所有 IDE 都有一个共同出口：**报错能选中、能复制**。errsplain 抓住剪贴板，一样能翻译，仍然零依赖（直接调 Windows API，不需要图形库）。
 

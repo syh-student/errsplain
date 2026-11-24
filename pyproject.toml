@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "errsplain"
 version = "0.1.0"
-description = "把天书般的报错翻译成人话 —— 纯离线、零依赖的报错翻译官，支持命令行与 IDE 剪贴板，还能现场诊断你的环境"
+description = "把天书般的报错翻译成人话 —— 纯离线、零依赖的报错翻译官，支持命令行与 IDE 剪贴板（VS Code、Visual Studio、PyCharm、IDEA、Rider 等），还能现场诊断你的环境"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
