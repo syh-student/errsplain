@@ -164,6 +164,7 @@ def handle_watch_command(args: list[str]) -> int:
             last_hash = current
 
             if not clipboard.looks_like_error(text):
+                time.sleep(opts.interval)
                 continue
             result = clipboard.translate(text)
             diag = _diagnose_text(text) if opts.diagnose else ""
@@ -171,6 +172,7 @@ def handle_watch_command(args: list[str]) -> int:
             if diag:
                 combined = f"{combined}\n{diag}" if combined else diag
             if not combined:
+                time.sleep(opts.interval)
                 continue
 
             print(f"\n{combined}\n", flush=True)

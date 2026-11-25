@@ -52,6 +52,21 @@ def _read_console_lines_windows() -> list[str]:
         wintypes.HANDLE,
     ]
     kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.GetConsoleScreenBufferInfo.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(CONSOLE_SCREEN_BUFFER_INFO),
+    ]
+    kernel32.GetConsoleScreenBufferInfo.restype = wintypes.BOOL
+    kernel32.ReadConsoleOutputCharacterW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        COORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    kernel32.ReadConsoleOutputCharacterW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
 
     info = CONSOLE_SCREEN_BUFFER_INFO()
 
@@ -60,25 +75,31 @@ def _read_console_lines_windows() -> list[str]:
 
     # 直接打开 CONOUT$：即使 stdout 被接到管道，也能读到真实控制台画面
     handle = kernel32.CreateFileW("CONOUT$", 0xC0000000, 3, None, 3, 0, None)
-    if handle in (None, _INVALID_HANDLE) or not console_info(handle):
+    if handle in (None, _INVALID_HANDLE):
         return []
 
-    left = info.srWindow.Left
-    top = info.srWindow.Top
-    bottom = info.srWindow.Bottom
-    width = max(1, info.srWindow.Right - left + 1)
-    lines: list[str] = []
-    for y in range(top, bottom + 1):
-        buffer = ctypes.create_unicode_buffer(width + 1)
-        read = wintypes.DWORD(0)
-        coord = COORD(left, y)
-        ok = kernel32.ReadConsoleOutputCharacterW(
-            handle, buffer, width, coord, ctypes.byref(read)
-        )
-        if not ok:
-            continue
-        lines.append(buffer[: read.value].rstrip())
-    return lines
+    try:
+        if not console_info(handle):
+            return []
+
+        left = info.srWindow.Left
+        top = info.srWindow.Top
+        bottom = info.srWindow.Bottom
+        width = max(1, info.srWindow.Right - left + 1)
+        lines: list[str] = []
+        for y in range(top, bottom + 1):
+            buffer = ctypes.create_unicode_buffer(width + 1)
+            read = wintypes.DWORD(0)
+            coord = COORD(left, y)
+            ok = kernel32.ReadConsoleOutputCharacterW(
+                handle, buffer, width, coord, ctypes.byref(read)
+            )
+            if not ok:
+                continue
+            lines.append(buffer[: read.value].rstrip())
+        return lines
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def extract_recent_text(
